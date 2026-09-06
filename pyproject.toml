@@ -1,0 +1,15 @@
+[project]
+name = "unity-robot-ml-agent"
+version = "0.1.0"
+description = "unity robot ml agent project"
+readme = "README.md"
+
+requires-python = ">=3.10.1, <=3.10.12"
+dependencies = [
+    "mlagents",
+    "mlagents-envs"
+]
+
+[tool.uv.sources]
+mlagents = { path = "./lib/ml-agents", editable = true }
+mlagents-envs = { path = "./lib/ml-agents-envs", editable = true }
