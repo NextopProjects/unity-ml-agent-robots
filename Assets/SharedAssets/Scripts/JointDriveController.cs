@@ -104,9 +104,14 @@ namespace Unity.MLAgentsExamples
     {
         [Header("Joint Drive Settings")]
         [Space(10)]
+
+        [Header("① 관절 힘 — 지시받은 자세로 당기는 세기 (약하면 주저앉음)")]
         public float maxJointSpring;
 
+        [Header("② 떨림 잡기 — ①의 반동 흡수 (①의 1/10 정도로 시작)")]
         public float jointDampen;
+
+        [Header("③ 근력 최대치 — AI가 쓸 힘의 상한 (학습 중 변경 금지)")]
         public float maxJointForceLimit;
 
         [HideInInspector] public Dictionary<Transform, BodyPart> bodyPartsDict = new Dictionary<Transform, BodyPart>();
