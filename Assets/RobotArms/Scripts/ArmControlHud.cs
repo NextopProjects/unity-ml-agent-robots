@@ -34,6 +34,15 @@ namespace RobotArms
         [Tooltip("글자 크기. 화면이 크면 키운다.")]
         public int fontSize = 15;
 
+        /// <summary>
+        /// 다른 스크립트가 채워 넣는 한 줄. 비어 있으면 표시하지 않는다.
+        /// 3장에서 에이전트가 에피소드 번호와 누적 보상을 여기에 써넣는다.
+        ///
+        /// 이렇게 해두면 HUD가 ML-Agents를 몰라도 된다.
+        /// (2장에서 만든 것을 3장에서 고치지 않고 그대로 쓸 수 있다)
+        /// </summary>
+        [System.NonSerialized] public string statusLine = "";
+
         RobotArmController _arm;
         GUIStyle _label, _title, _panel;
         Font _font;
@@ -60,7 +69,7 @@ namespace RobotArms
             }
 
             const int width = 300;
-            int rows = _arm.JointCount + 3;
+            int rows = _arm.JointCount + 3 + (string.IsNullOrEmpty(statusLine) ? 0 : 1);
             int height = 92 + rows * 22;
 
             GUI.Box(new Rect(10, 10, width, height), GUIContent.none, _panel);
@@ -104,6 +113,14 @@ namespace RobotArms
                 _label.normal.textColor = reached ? new Color(0.45f, 1f, 0.55f) : Color.white;
                 GUI.Label(new Rect(x, y, width, 22),
                     string.Format("팔 끝 ↔ 물체   {0:F2}{1}", d, reached ? "   도달!" : ""), _label);
+                _label.normal.textColor = Color.white;
+                y += 22f;
+            }
+
+            if (!string.IsNullOrEmpty(statusLine))
+            {
+                _label.normal.textColor = new Color(0.75f, 0.85f, 1f);
+                GUI.Label(new Rect(x, y, width, 22), statusLine, _label);
                 _label.normal.textColor = Color.white;
                 y += 22f;
             }
