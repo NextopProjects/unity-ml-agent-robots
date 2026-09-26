@@ -103,3 +103,10 @@ InitTestScene*.unity*
 __pycache__/
 *.py[cod]
 
+# IntelliJ IDEA
+.idea/
+*.iml
+
+
+# Oh My Claude Code
+.omc/
