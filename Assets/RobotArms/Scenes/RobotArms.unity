@@ -391,7 +391,7 @@ Transform:
   m_GameObject: {fileID: 430947599}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.2, y: 0.01, z: 1.2}
+  m_LocalPosition: {x: -1.0606601, y: 0.01, z: 1.0606601}
   m_LocalScale: {x: 0.35, y: 0.01, z: 0.35}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -482,8 +482,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 567837849}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.1, z: 1.8}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.01836382, y: 0.1, z: 2.28166}
   m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -846,8 +846,8 @@ GameObject:
   - component: {fileID: 889043706}
   - component: {fileID: 889043705}
   - component: {fileID: 889043710}
-  - component: {fileID: 889043709}
   - component: {fileID: 889043708}
+  - component: {fileID: 889043711}
   m_Layer: 0
   m_Name: Base
   m_TagString: Untagged
@@ -965,30 +965,6 @@ MonoBehaviour:
   DecisionPeriod: 5
   DecisionStep: 0
   TakeActionsBetweenDecisions: 1
---- !u!114 &889043709
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 889043703}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6ad741fac595b3243861208f8ff6cd52, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RobotArms.RobotArmAgent
-  agentParameters:
-    maxStep: 0
-  hasUpgradedFromAgentParameters: 1
-  MaxStep: 1000
-  arm: {fileID: 889043707}
-  targetObject: {fileID: 567837850}
-  hud: {fileID: 889043705}
-  successDistance: 0.25
-  spawnDistanceRange: {x: 1.2, y: 2.4}
-  spawnYawRange: {x: -60, y: 60}
-  useDenseReward: 1
-  successReward: 1
 --- !u!114 &889043710
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1002,24 +978,55 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.ML-Agents::Unity.MLAgents.Policies.BehaviorParameters
   m_BrainParameters:
-    VectorObservationSize: 12
+    VectorObservationSize: 16
     NumStackedVectorObservations: 1
     m_ActionSpec:
       m_NumContinuousActions: 3
-      BranchSizes: 
-    VectorActionSize: 03000000
+      BranchSizes: 02000000
+    VectorActionSize: 
     VectorActionDescriptions: []
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
   m_Model: {fileID: 0}
   m_InferenceDevice: 0
   m_BehaviorType: 0
-  m_BehaviorName: RobotArm
+  m_BehaviorName: RobotArmPickPlace
   TeamId: 0
   m_UseChildSensors: 1
   m_UseChildActuators: 1
   m_DeterministicInference: 0
   m_ObservableAttributeHandling: 0
+--- !u!114 &889043711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 889043703}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f512d9b361a314e49a24bb2b51684f9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RobotArms.RobotArmPickPlaceAgent
+  agentParameters:
+    maxStep: 0
+  hasUpgradedFromAgentParameters: 1
+  MaxStep: 2500
+  arm: {fileID: 889043707}
+  targetObject: {fileID: 567837850}
+  placeTarget: {fileID: 430947600}
+  hud: {fileID: 889043705}
+  grabDistance: 0.25
+  placeRadius: 0.25
+  restSpeed: 0.2
+  spawnDistanceRange: {x: 1.2, y: 2.4}
+  spawnYawRange: {x: -60, y: 60}
+  placeSpot: {x: 1.5, y: -45}
+  minSeparation: 0.6
+  useDenseReward: 1
+  grabReward: 0.5
+  placeReward: 1
+  dropPenalty: 0.3
 --- !u!1 &976337788
 GameObject:
   m_ObjectHideFlags: 0
@@ -1134,7 +1141,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1042680969}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0.38268346, y: 0, z: 0, w: 0.9238795}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -1384,7 +1391,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1887253217}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: 0.5, y: -0, z: -0, w: 0.8660254}
   m_LocalPosition: {x: 0, y: 0, z: 1.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
