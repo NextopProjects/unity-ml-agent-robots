@@ -68,7 +68,7 @@ namespace RobotArms
                 return;
             }
 
-            const int width = 300;
+            const int width = 360;
             int rows = _arm.JointCount + 3 + (string.IsNullOrEmpty(statusLine) ? 0 : 1);
             int height = 92 + rows * 22;
 
@@ -83,15 +83,15 @@ namespace RobotArms
             // ── 관절 ──
             for (int i = 0; i < _arm.JointCount; i++)
             {
-                var j = _arm.joints[i];
-                float t = Mathf.InverseLerp(j.minAngle, j.maxAngle, j.Angle);
+                float angle = _arm.joints[i].Angle;
+                float t = Mathf.InverseLerp(_arm.joints[i].minAngle, _arm.joints[i].maxAngle, angle);
 
                 // 가동 범위의 양 끝에 가까우면 표시해준다.
                 string edge = t <= 0.01f ? "  (최소)" : (t >= 0.99f ? "  (최대)" : "");
 
                 GUI.Label(new Rect(x, y, width, 22),
                     string.Format("{0,-7} {1,-8} {2,7:F1}°{3}",
-                        RobotArmInput.KeyLabel(i), j.label, j.Angle, edge), _label);
+                        RobotArmInput.KeyLabel(i), _arm.joints[i].label, angle, edge), _label);
                 y += 22f;
             }
 

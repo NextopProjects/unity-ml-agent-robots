@@ -110,3 +110,8 @@ __pycache__/
 
 # Oh My Claude Code
 .omc/
+# ML-Agents 학습 산출물 (체크포인트, 텐서보드 로그 등)
+# 학습된 모델을 쓰려면 .onnx 만 Assets/RobotArms/Models/ 로 복사한다.
+/[Aa]ssets/RobotArms/results/
+/[Aa]ssets/RobotArms/results.meta
+/results/

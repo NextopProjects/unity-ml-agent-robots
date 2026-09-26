@@ -65,3 +65,36 @@ behaviors:
     max_steps: 5000000            # 최종 과제. 3장보다 훨씬 오래 걸린다
     time_horizon: 512             # 집고 옮겨 놓는 한 사이클이 길다
     summary_freq: 20000
+
+  # ── 5장: 같은 과제를 그리퍼로 (관측 19 / 연속 3 + 이산 1) ────────────
+  # 4장과 값을 "일부러" 똑같이 맞췄다.
+  # 잡기 성공 조건만 까다로워졌을 때 학습이 얼마나 어려워지는지
+  # 두 학습 곡선을 나란히 놓고 비교하기 위해서다.
+  RobotArmGripper:
+    trainer_type: ppo
+
+    hyperparameters:
+      batch_size: 2048
+      buffer_size: 20480
+      learning_rate: 3.0e-4
+      beta: 5.0e-3
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+      beta_schedule: constant
+      epsilon_schedule: linear
+
+    network_settings:
+      normalize: true
+      hidden_units: 256
+      num_layers: 2
+
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+
+    max_steps: 8000000            # 조건이 까다로워진 만큼 더 오래 걸린다
+    time_horizon: 512
+    summary_freq: 20000
