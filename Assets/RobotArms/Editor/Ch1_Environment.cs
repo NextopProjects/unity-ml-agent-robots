@@ -102,7 +102,7 @@ namespace RobotArmsEditor
             var rb = obj.AddComponent<Rigidbody>();
             rb.mass = 0.2f;
 
-            // ── 놓을 자리 (6장에서 사용) ──
+            // ── 놓을 자리 (4장에서 사용) ──
             CreateMesh(PrimitiveType.Cylinder, "PlaceTarget", area.transform,
                 new Vector3(-1.2f, 0.01f, 1.2f), new Vector3(0.35f, 0.01f, 0.35f),
                 PlaceTargetMaterial);

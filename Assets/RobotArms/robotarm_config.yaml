@@ -34,3 +34,34 @@ behaviors:
     max_steps: 1000000            # RollerBall은 5000 (튜토리얼용 값이었다)
     time_horizon: 128             # 도달까지 걸리는 스텝이 길어서 늘렸다
     summary_freq: 10000
+
+  # ── 4장: 집어서 옮겨 놓기 (관측 16 / 연속 3 + 이산 1) ───────────────
+  # 가서 → 집고 → 옮기고 → 놓기. 한 판에 할 일이 네 배로 늘었다.
+  RobotArmPickPlace:
+    trainer_type: ppo
+
+    hyperparameters:
+      batch_size: 2048            # 과제가 길어져 한 판마다 편차가 더 크다
+      buffer_size: 20480
+      learning_rate: 3.0e-4
+      beta: 5.0e-3
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+      beta_schedule: constant
+      epsilon_schedule: linear
+
+    network_settings:
+      normalize: true
+      hidden_units: 256
+      num_layers: 2
+
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+
+    max_steps: 5000000            # 3장보다 훨씬 오래 걸린다
+    time_horizon: 512             # 집고 옮기기까지가 멀어서 늘렸다
+    summary_freq: 20000
