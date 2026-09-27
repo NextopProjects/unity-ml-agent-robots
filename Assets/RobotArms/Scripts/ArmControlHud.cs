@@ -34,6 +34,10 @@ namespace RobotArms
         [Tooltip("글자 크기. 화면이 크면 키운다.")]
         public int fontSize = 15;
 
+        /// <summary>에이전트가 매 스텝 채워 넣는 한 줄. (3장부터)
+        /// 학습 중에 보상이 오르는지 눈으로 보려고 둔다.</summary>
+        [HideInInspector] public string statusLine;
+
         RobotArmController _arm;
         GUIStyle _label, _title, _panel;
         Font _font;
@@ -60,7 +64,7 @@ namespace RobotArms
             }
 
             const int width = 300;
-            int rows = _arm.JointCount + 3;
+            int rows = _arm.JointCount + 4;   // 3장에서 상태 줄이 하나 늘었다
             int height = 92 + rows * 22;
 
             GUI.Box(new Rect(10, 10, width, height), GUIContent.none, _panel);
@@ -104,6 +108,14 @@ namespace RobotArms
                 _label.normal.textColor = reached ? new Color(0.45f, 1f, 0.55f) : Color.white;
                 GUI.Label(new Rect(x, y, width, 22),
                     string.Format("팔 끝 ↔ 물체   {0:F2}{1}", d, reached ? "   도달!" : ""), _label);
+                _label.normal.textColor = Color.white;
+                y += 22f;
+            }
+
+            if (!string.IsNullOrEmpty(statusLine))
+            {
+                _label.normal.textColor = new Color(0.6f, 0.85f, 1f);
+                GUI.Label(new Rect(x, y, width, 22), statusLine, _label);
                 _label.normal.textColor = Color.white;
                 y += 22f;
             }

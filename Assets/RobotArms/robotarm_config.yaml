@@ -1,0 +1,36 @@
+behaviors:
+
+  # ── 3장: 물체까지 도달하기 (관측 12 / 연속 액션 3) ──────────────────
+  RobotArm:
+    trainer_type: ppo
+
+    hyperparameters:
+      # RollerBall은 10 / 100 이었다.
+      # 관절 제어는 한 판마다 결과 편차가 커서, 많이 모아 평균을 내야 안정적으로 배운다.
+      batch_size: 1024
+      buffer_size: 10240          # 보통 batch_size의 10배로 맞춘다
+
+      learning_rate: 3.0e-4
+      beta: 5.0e-3                # RollerBall(5.0e-4)보다 크다 = 초반에 더 많이 탐험한다
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+      beta_schedule: constant
+      epsilon_schedule: linear
+
+    network_settings:
+      # 관측 값의 범위가 제각각이라(각도 ±180, 위치 ±2.7) 반드시 켠다.
+      # 코드에서도 정규화하지만, 여기서 한 번 더 자동으로 맞춰준다.
+      normalize: true
+      hidden_units: 256           # RollerBall은 128. 관측·행동이 늘어나서 키웠다
+      num_layers: 2
+
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+
+    max_steps: 1000000            # RollerBall은 5000 (튜토리얼용 값이었다)
+    time_horizon: 128             # 도달까지 걸리는 스텝이 길어서 늘렸다
+    summary_freq: 10000
