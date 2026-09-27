@@ -103,6 +103,14 @@ InitTestScene*.unity*
 __pycache__/
 *.py[cod]
 
+# 학습 실행 시 생성되는 것들 (mlagents-learn)
+#   results  : 체크포인트·onnx·TensorBoard 로그. 용량이 크고 매번 바뀐다
+#   Timers   : 실행 시간 기록. Unity가 자동으로 만든다
+/results/
+/[Aa]ssets/RobotArms/results/
+/[Aa]ssets/RobotArms/results.meta
+/[Aa]ssets/ML-Agents/Timers/
+
 # IntelliJ IDEA
 .idea/
 *.iml
