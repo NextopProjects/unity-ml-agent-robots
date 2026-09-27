@@ -21,7 +21,7 @@ Unity ML-Agents 실습 프로젝트. `RollerBall` 다음 단계로 진행한다.
 | 2 | [02-관절회전.md](Docs/02-관절회전.md) | 관절 회전 + 키보드 조작 | 없음 | **완료** |
 | 3 | [03-도달학습.md](Docs/03-도달학습.md) | 물체까지 도달 학습 | **여기서 시작** | **완료** |
 | 4 | [04-집어서-옮겨놓기.md](Docs/04-집어서-옮겨놓기.md) | **집어서 옮겨 놓기 (자석)** ★ | O | **완료** |
-| 5 | (작성 예정) | 집게로 교체 (마찰로 잡기) | O | 예정 |
+| 5 | [05-그리퍼로-교체.md](Docs/05-그리퍼로-교체.md) | 집게로 교체 (마찰로 잡기) | O | **완료** |
 | 6 | (작성 예정) | 난이도 올리기 (커리큘럼 · 방해물) | O | 예정 |
 | 7 | (작성 예정) | 심화 (ArticulationBody / 배포) | O | 예정 |
 
@@ -58,20 +58,25 @@ Assets/RobotArms/
 │   ├── 01-환경구성.md
 │   ├── 02-관절회전.md
 │   ├── 03-도달학습.md
-│   └── 04-집어서-옮겨놓기.md
+│   ├── 04-집어서-옮겨놓기.md
+│   └── 05-그리퍼로-교체.md
 ├── Editor/
 │   ├── RobotArmsBuild.cs           치수·머티리얼·도우미 (공통)
 │   ├── Ch1_Environment.cs          [1장] 메뉴로 씬 구성
 │   ├── Ch2_JointControl.cs         [2장] 메뉴로 관절 제어 부착
 │   ├── Ch3_Agent.cs                [3장] 메뉴로 에이전트 설정
-│   └── Ch4_PickPlace.cs            [4장] 메뉴로 집기+옮겨놓기 교체
+│   ├── Ch4_PickPlace.cs            [4장] 메뉴로 집기+옮겨놓기 교체
+│   ├── Ch5_Gripper.cs              [5장] 메뉴로 집게 교체
+│   └── ParallelTraining.cs         [도구] 학습 영역 복제 (병렬 학습)
 ├── Scripts/
 │   ├── RobotArmController.cs       [1~2장] 팔의 "몸". 관절을 돌린다
 │   ├── RobotArmInput.cs            [2장]   키보드 조작을 모아둔 곳
 │   ├── ManualArmDriver.cs          [2장]   키보드로 팔을 움직인다
 │   ├── ArmControlHud.cs            [2장]   화면에 조작법·상태 표시
 │   ├── RobotArmAgent.cs            [3장]   도달 학습 에이전트
-│   └── RobotArmPickPlaceAgent.cs   [4장]   집어서 옮겨놓기 (자석)
+│   ├── RobotArmPickPlaceAgent.cs   [4장]   집어서 옮겨놓기 (자석)
+│   ├── Gripper.cs                  [5장]   집게 — 따라가기·여닫기·접촉 판정
+│   └── RobotArmGripperAgent.cs     [5장]   같은 과제를 집게로
 ├── Scenes/RobotArms.unity
 ├── Materials/                      M_Table, M_ArmBase, M_Turntable, ...
 └── robotarm_config.yaml            [3장]   학습 설정 (PPO)
@@ -87,6 +92,9 @@ Unity 상단 메뉴에 `RobotArms` 가 생긴다. 장 순서대로 누르면 된
 | `2. 관절 제어 붙이기` | 관절 설정 + 키보드 조작을 붙인다 | 2장 |
 | `3. 에이전트 설정 (도달 학습)` | Agent / BehaviorParameters / DecisionRequester | 3장 |
 | `4. 집어서 옮겨 놓기 (자석)` | 집기·옮기기 에이전트로 교체 (관측 16 / 이산 액션 추가) | 4장 |
+| `5. 집게로 교체 (마찰로 잡기)` | 집게 생성 + 마찰로 잡기 (관측 19) | 5장 |
+| `학습 영역 복제 (병렬 학습)` | 학습 영역을 25개로 늘린다 (5x5). 코드 수정 없음 | 도구 |
+| `학습 영역 되돌리기 (1개로)` | 복제본을 지운다 | 도구 |
 
 > 손으로 직접 만들어보고 싶으면 각 장 문서의 표를 보고 그대로 따라 하면 된다.
 > 메뉴는 "정답 씬"을 빠르게 만들어 비교해보기 위한 것이다.
@@ -137,7 +145,7 @@ Unity 상단 메뉴에 `RobotArms` 가 생긴다. 장 순서대로 누르면 된
 
 ---
 
-## 앞으로 (5장~) 예정
+## 앞으로 (6장~) 예정
 
 | 장 | 관측 | 액션 | 새로 배우는 것 |
 |---|---|---|---|

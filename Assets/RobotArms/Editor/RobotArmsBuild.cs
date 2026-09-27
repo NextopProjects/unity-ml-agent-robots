@@ -39,6 +39,8 @@ namespace RobotArmsEditor
         public static Material UpperArmMaterial     => Mat("M_UpperArm",     0.30f, 0.55f, 0.85f);
         public static Material ForeArmMaterial      => Mat("M_ForeArm",      0.35f, 0.70f, 0.95f);
         public static Material TipMaterial          => Mat("M_Tip",          0.95f, 0.80f, 0.25f);
+        public static Material GripperMaterial      => Mat("M_Gripper",      0.80f, 0.80f, 0.85f);
+        public static Material GripPadMaterial      => Mat("M_GripPad",      0.25f, 0.25f, 0.28f);
         public static Material TargetObjectMaterial => Mat("M_TargetObject", 0.95f, 0.50f, 0.20f);
         public static Material PlaceTargetMaterial  => Mat("M_PlaceTarget",  0.35f, 0.85f, 0.45f);
 
