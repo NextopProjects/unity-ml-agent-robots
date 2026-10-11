@@ -107,6 +107,7 @@ namespace HumanoidEditor
 
         static HumanoidBody Body => Get<HumanoidBody>(Root);
         static BehaviorParameters Brain => Get<BehaviorParameters>(Root);
+        static bool IsStand => Has<StandAgent>(Root);
         static bool IsBehavior(BehaviorType type) => Brain != null && Brain.BehaviorType == type;
 
         static GameObject G(string path) => T(path) != null ? T(path).gameObject : null;
@@ -428,6 +429,97 @@ namespace HumanoidEditor
             PlayStep(s).Do("1 로 차렷 자세에서 P 로 민다 → 넘어진다").Game("1, P");
             s.Do("R 로 다시 세운다").Game("R");
             ch.steps.Add(StopStep(s));
+
+            // ═══════════════════════════════════════════════════════════
+            // 3장 — 서기 학습
+            // ═══════════════════════════════════════════════════════════
+            ch = new Chapter { title = "3. 서기 학습", doc = "03-서기-학습.md",
+                goals = new[] { "에이전트 · 두뇌(Behavior Parameters) · 판단 주기를 직접 붙인다", "기울기를 관측하고, 서 있기를 보상으로 표현한다", "밀려도 버티는 정책을 학습한다" } };
+            list.Add(ch);
+
+            ch.steps.Add(new Step { title = "빈칸 3-1  몸이 느끼는 아래쪽", blank = "3-1",
+                goal = "세상의 아래 (0,-1,0)을 몸 기준 좌표로 바꾼다",
+                concept = "AI가 '얼마나 기울었나'를 알아야 버틸 수 있다. 사람의 귓속 평형감각과 같은 정보다.\n" +
+                          "똑바로 서면 (0,-1,0), 앞으로 숙이면 아래가 몸의 앞쪽(+z)에 있다.\n\n" +
+                          "회전 * 벡터 는 몸 기준 → 세상 기준. 그 반대는 Quaternion.Inverse(회전) * 벡터.\n" +
+                          "몸 기준으로 주면 어느 쪽을 보고 서 있든 같은 상황에 같은 숫자가 나온다.",
+                skeleton = "return ___ * Vector3.down;",
+                hint = "Quaternion.Inverse(bodyRotation) * Vector3.down" });
+
+            s = new Step { title = "에이전트 붙이기", goal = "몸에 '두뇌가 붙을 자리' Stand Agent 를 단다",
+                concept = "Stand Agent 의 네 함수 (RollerBall · RobotArms 와 같다)\n" +
+                          "  OnEpisodeBegin       몸과 목표 각도를 차렷으로 되돌린다\n" +
+                          "  CollectObservations  36개: 골반 높이 1 · 기울기 3 · 속도 3 · 회전 속도 3 · 관절 각도 12 · 관절 속도 12 · 발 접촉 2\n" +
+                          "  OnActionReceived     행동 12개 → 관절. 3초마다 몸통을 무작위로 0~20 N·s 민다. 넘어지면 판을 끝낸다\n" +
+                          "  Heuristic            키보드 행동을 그대로 쓴다\n\n" +
+                          "안 밀면 '가만히 있기'만 배운다. 2장에서 봤듯 그것만으로도 서 있기 때문이다.\n" +
+                          "Max Step 1000 = 20초. 넘어지지 않아도 여기서 판이 끝난다.",
+                solve = () => { var go = G(Root); if (!IsStand) { Undo.AddComponent<StandAgent>(go); } Set<StandAgent>(Root, agent => agent.MaxStep = 1000); } };
+            s.Do("Humanoid 에 Add Component > Stand Agent  (Behavior Parameters 가 같이 붙는다)", () => IsStand).Insp(Root, typeof(StandAgent), "Add Component ▸ Stand Agent");
+            ch.steps.Add(s.Do("Stand Agent 의 Max Step 1000", () => IsStand && Get<StandAgent>(Root).MaxStep == 1000).Insp(Root, typeof(StandAgent), "Max Step"));
+
+            s = new Step { title = "두뇌 설정", goal = "Behavior Parameters 에 이름 · 관측 수 · 행동 수를 넣는다",
+                concept = "Behavior Name  학습기(yaml)가 이 이름으로 두뇌를 찾는다 → HumanoidStand\n" +
+                          "Space Size     관측 개수. CollectObservations 에서 넣는 개수와 반드시 같아야 한다 → 36\n" +
+                          "Continuous     연속 행동 개수 = 관절 12축 → 12\n\n" +
+                          "개수가 다르면 Play 하는 순간 에러가 난다.",
+                solve = () => Set<BehaviorParameters>(Root, b => { b.BehaviorName = "HumanoidStand"; b.BrainParameters.VectorObservationSize = 36; b.BrainParameters.ActionSpec = Unity.MLAgents.Actuators.ActionSpec.MakeContinuous(12); }) };
+            s.Do("Behavior Name: HumanoidStand", () => Brain != null && Brain.BehaviorName == "HumanoidStand").Insp(Root, typeof(BehaviorParameters), "Behavior Name");
+            s.Do("Vector Observation > Space Size: 36", () => Brain != null && Brain.BrainParameters.VectorObservationSize == 36).Insp(Root, typeof(BehaviorParameters), "Vector Observation ▸ Space Size");
+            ch.steps.Add(s.Do("Actions > Continuous Actions: 12 (Discrete Branches 0)", () => Brain != null && Brain.BrainParameters.ActionSpec.NumContinuousActions == 12 && Brain.BrainParameters.ActionSpec.NumDiscreteActions == 0).Insp(Root, typeof(BehaviorParameters), "Actions ▸ Continuous Actions"));
+
+            s = new Step { title = "판단 주기", goal = "AI가 1초에 몇 번 판단할지 정한다",
+                concept = "물리 50Hz, Decision Period 5 → AI는 1초에 10번 판단한다.\n" +
+                          "판단 사이에는 직전 목표 각도를 유지하고(Take Actions Between Decisions), 모터가 버틴다.\n" +
+                          "사람도 근육 하나하나를 매 순간 의식하지 않는다.",
+                solve = () => Set<DecisionRequester>(Root, d => { d.DecisionPeriod = 5; d.TakeActionsBetweenDecisions = true; }) };
+            s.Do("Humanoid 에 Add Component > Decision Requester", () => Has<DecisionRequester>(Root)).Insp(Root, typeof(DecisionRequester), "Add Component ▸ Decision Requester");
+            ch.steps.Add(s.Do("Decision Period 5 · Take Actions Between Decisions 켬", () => Has<DecisionRequester>(Root) && Get<DecisionRequester>(Root).DecisionPeriod == 5 && Get<DecisionRequester>(Root).TakeActionsBetweenDecisions).Insp(Root, typeof(DecisionRequester), "Decision Period · Take Actions Between Decisions"));
+
+            s = new Step { title = "키보드는 행동만", goal = "몸은 에이전트가 움직이게 하고, 키보드는 행동만 만들게 한다",
+                concept = "둘 다 몸을 움직이면 서로 덮어쓴다.\n" +
+                          "Drive Body 를 끄면 키보드는 행동 12개만 만들고, Heuristic Only 일 때 에이전트가 그것을 쓴다.\n" +
+                          "화면 표시(각도 · 보상)는 그대로 나온다.",
+                solve = () => Set<KeyboardControl>(Root, k => k.driveBody = false) };
+            ch.steps.Add(s.Do("Keyboard Control 의 Drive Body 체크를 끈다", () => Has<KeyboardControl>(Root) && !Get<KeyboardControl>(Root).driveBody).Insp(Root, typeof(KeyboardControl), "Drive Body"));
+
+            ch.steps.Add(new Step { title = "빈칸 3-2  서기 보상", blank = "3-2",
+                goal = "똑바른 정도 × 높이 비율 (0~1)",
+                concept = "똑바른 정도 = up.y 를 0~1로 자른 값,  높이 비율 = height / standHeight 를 0~1로 자른 값.\n\n" +
+                          "더하지 않고 곱한다. 더하면 '쪼그려 앉아 똑바로'나 '기운 채 높이'도 절반 점수를 받는다.\n" +
+                          "넘어지면 판을 끝낸다. 벌점은 없다 — 앞으로 받을 점수가 사라지는 것이 벌이다.\n" +
+                          "할인율 γ: 먼 미래 보상일수록 γ를 한 번씩 더 곱해 깎는다. 매 스텝 1점이면 합은 1/(1-γ) = 100 (γ=0.99). 넘어지면 이 100점이 사라진다.",
+                skeleton = "return Mathf.Clamp01(___) * Mathf.Clamp01(___);",
+                hint = "Mathf.Clamp01(up.y) * Mathf.Clamp01(height / standHeight)" });
+
+            s = new Step { title = "Heuristic 으로 먼저 돌려 보기", goal = "학습 전에 에러 없이 판이 돌아가는지 확인한다",
+                concept = "Heuristic Only = AI 대신 키보드가 행동을 낸다.\n" +
+                          "3초마다 밀려서 넘어지면 판이 끝나고 차렷 자세로 다시 선다. 화면 왼쪽 위에 에피소드 수와 보상이 보인다.",
+                hint = "관측 관련 에러가 나면 Space Size(36)와 코드의 AddObservation 개수가 같은지 본다." };
+            s.Do("Behavior Type 을 Heuristic Only 로 바꾼다", () => IsBehavior(BehaviorType.HeuristicOnly), "바꾸기", () => SetBehavior(BehaviorType.HeuristicOnly)).Insp(Root, typeof(BehaviorParameters), "Behavior Type");
+            PlayStep(s).Do("밀려서 넘어지고 판이 새로 시작되는 것을 본다", () => Playing && Has<StandAgent>(Root) && Get<StandAgent>(Root).CompletedEpisodes >= 1).Game("관찰 (왼쪽 위 에피소드 수)");
+            StopStep(s);
+            ch.steps.Add(s.Do("Behavior Type 을 Default 로 되돌린다", () => !Playing && IsBehavior(BehaviorType.Default), "되돌리기", () => SetBehavior(BehaviorType.Default)).Insp(Root, typeof(BehaviorParameters), "Behavior Type"));
+
+            s = new Step { title = "학습하기", goal = "mlagents-learn 으로 서기를 학습한다",
+                concept = "터미널(프로젝트 폴더)에서:\n  run_env.bat\n  mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=stand\n" +
+                          "'Start training by pressing Play' 가 뜨면 Unity에서 Play.\n\n" +
+                          "실측(빌드 4개 병렬): 20만 스텝 80 → 100만 420 → 200만 약 780.  행동 0이면 350.\n" +
+                          "처음엔 행동을 크게 흔들어 보기 때문에 '가만히 있기'보다 점수가 낮다. 정상이다.",
+                hint = "파이썬이 안 붙으면 Behavior Name(HumanoidStand)과 yaml 키 이름이 같은지 본다." };
+            s.Do("학습 설정(yaml)을 열어 HumanoidStand 부분을 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_config.yaml"));
+            s.Do("학습 명령을 복사해 터미널에서 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=stand"));
+            s.Do("Unity에서 Play → 학습기가 연결된다", () => Playing && Academy.IsInitialized && Academy.Instance.IsCommunicatorOn).Toolbar("▶");
+            ch.steps.Add(s.Do("tensorboard --logdir results 로 보상이 오르는 것을 본다"));
+
+            s = new Step { title = "학습된 모델 평가", goal = "학습 결과를 탐험 없이 확인한다",
+                concept = "results/stand/HumanoidStand.onnx 를 Assets 아래로 끌어와 Behavior Parameters 의 Model 칸에 넣는다.\n\n" +
+                          "실측(30판): 행동 0  평균 350 · 끝까지 버팀 1/30   →   학습 후  평균 848 · 22/30",
+                done = "3장 끝. 이제 걷는다." };
+            s.Do("Model 칸에 학습된 .onnx 를 넣는다", () => Brain != null && Brain.Model != null).Insp(Root, typeof(BehaviorParameters), "Model ← .onnx 끌어다 놓기");
+            s.Do("Behavior Type 을 Inference Only 로 바꾼다", () => IsBehavior(BehaviorType.InferenceOnly), "바꾸기", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Behavior Type");
+            PlayStep(s);
+            ch.steps.Add(s.Do("P 로 직접 밀어 본다 — 대부분 버틴다").Game("P"));
 
             return list;
         }

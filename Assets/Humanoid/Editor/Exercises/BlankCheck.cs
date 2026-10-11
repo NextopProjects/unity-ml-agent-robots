@@ -32,6 +32,14 @@ namespace HumanoidEditor
             ("2-2", "한계를 넘은 -40도 (경계) → -1", -1f, () => M.AngleToAction(-40f, -30f, 90f)),
             ("2-2", "무릎 +3도 (경계: high=0) → 0, NaN 아님", 0f, () => M.AngleToAction(3f, -120f, 0f)),
 
+            ("3-1", "똑바로 → (0,-1,0)", Vector3.down, () => M.DownInBody(Quaternion.identity)),
+            ("3-1", "앞으로 60도 숙임 → 아래가 몸의 앞쪽(+z)", new Vector3(0, -0.5f, 0.866f), () => M.DownInBody(Quaternion.Euler(60, 0, 0))),  // rot*down 이면 z가 음수
+            ("3-1", "거꾸로 (경계) → (0,1,0)", Vector3.up, () => M.DownInBody(Quaternion.Euler(180, 0, 0))),
+            ("3-2", "똑바로 · 제 높이 → 1", 1f, () => M.StandReward(Vector3.up, 0.96f, 0.96f)),
+            ("3-2", "똑바로 · 절반 높이 → 0.5", 0.5f, () => M.StandReward(Vector3.up, 0.48f, 0.96f)),
+            ("3-2", "누움 (경계) → 0", 0f, () => M.StandReward(Vector3.forward, 0.96f, 0.96f)),           // 더하기면 0.5
+            ("3-2", "거꾸로 (경계: up.y<0) → 0", 0f, () => M.StandReward(Vector3.down, 0.96f, 0.96f)),
+            ("3-2", "더 높이 뜀 (경계) → 1을 넘지 않음", 1f, () => M.StandReward(Vector3.up, 1.5f, 0.96f)),
 
 
         };
