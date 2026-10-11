@@ -41,6 +41,19 @@ namespace HumanoidEditor
             ("3-2", "거꾸로 (경계: up.y<0) → 0", 0f, () => M.StandReward(Vector3.down, 0.96f, 0.96f)),
             ("3-2", "더 높이 뜀 (경계) → 1을 넘지 않음", 1f, () => M.StandReward(Vector3.up, 1.5f, 0.96f)),
 
+            ("4-1", "정면 → 회전 없음", Quaternion.identity, () => M.HeadingRotation(Vector3.forward)),
+            ("4-1", "오른쪽(+x)을 봄 → 좌우 90도", Quaternion.Euler(0, 90, 0), () => M.HeadingRotation(Vector3.right)),
+            ("4-1", "숙인 채 오른쪽 → 좌우 90도만", Quaternion.Euler(0, 90, 0), () => M.HeadingRotation(new Vector3(0.5f, -0.8f, 0f))),
+            ("4-1", "바로 아래를 봄 (경계) → 회전 없음", Quaternion.identity, () => M.HeadingRotation(Vector3.down)),
+            ("4-2", "목표 속도 그대로 → 1", 1f, () => M.SpeedReward(Vector3.forward, Vector3.forward, 1f)),
+            ("4-2", "멈춤 → 0", 0f, () => M.SpeedReward(Vector3.zero, Vector3.forward, 1f)),
+            ("4-2", "절반 속도 → 0.5625", 0.5625f, () => M.SpeedReward(Vector3.forward * 0.5f, Vector3.forward, 1f)),
+            ("4-2", "반대로 달림 (경계) → 0", 0f, () => M.SpeedReward(Vector3.back * 2f, Vector3.forward, 1f)),
+            ("4-2", "떨어지는 속도는 무시 (경계) → 1", 1f, () => M.SpeedReward(new Vector3(0, -3, 1), Vector3.forward, 1f)),
+            ("4-3", "같은 쪽 → 1", 1f, () => M.FacingReward(Vector3.forward, Vector3.forward)),
+            ("4-3", "옆 → 0.5", 0.5f, () => M.FacingReward(Vector3.right, Vector3.forward)),
+            ("4-3", "반대 → 0", 0f, () => M.FacingReward(Vector3.back, Vector3.forward)),
+            ("4-3", "고개 숙임 (경계) → 1", 1f, () => M.FacingReward(new Vector3(0, -1, 1), Vector3.forward)),
 
         };
 

@@ -107,7 +107,7 @@ namespace HumanoidEditor
 
         static HumanoidBody Body => Get<HumanoidBody>(Root);
         static BehaviorParameters Brain => Get<BehaviorParameters>(Root);
-        static bool IsStand => Has<StandAgent>(Root);
+        static bool IsStand => Has<StandAgent>(Root) && !Has<WalkAgent>(Root);
         static bool IsBehavior(BehaviorType type) => Brain != null && Brain.BehaviorType == type;
 
         static GameObject G(string path) => T(path) != null ? T(path).gameObject : null;
@@ -454,7 +454,7 @@ namespace HumanoidEditor
                           "  Heuristic            키보드 행동을 그대로 쓴다\n\n" +
                           "안 밀면 '가만히 있기'만 배운다. 2장에서 봤듯 그것만으로도 서 있기 때문이다.\n" +
                           "Max Step 1000 = 20초. 넘어지지 않아도 여기서 판이 끝난다.",
-                solve = () => { var go = G(Root); if (!IsStand) { Undo.AddComponent<StandAgent>(go); } Set<StandAgent>(Root, agent => agent.MaxStep = 1000); } };
+                solve = () => { var go = G(Root); if (!IsStand) { Undo.AddComponent<StandAgent>(go); foreach (var w in go.GetComponents<WalkAgent>()) Undo.DestroyObjectImmediate(w); } Set<StandAgent>(Root, agent => agent.MaxStep = 1000); } };
             s.Do("Humanoid 에 Add Component > Stand Agent  (Behavior Parameters 가 같이 붙는다)", () => IsStand).Insp(Root, typeof(StandAgent), "Add Component ▸ Stand Agent");
             ch.steps.Add(s.Do("Stand Agent 의 Max Step 1000", () => IsStand && Get<StandAgent>(Root).MaxStep == 1000).Insp(Root, typeof(StandAgent), "Max Step"));
 
@@ -520,6 +520,81 @@ namespace HumanoidEditor
             s.Do("Behavior Type 을 Inference Only 로 바꾼다", () => IsBehavior(BehaviorType.InferenceOnly), "바꾸기", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Behavior Type");
             PlayStep(s);
             ch.steps.Add(s.Do("P 로 직접 밀어 본다 — 대부분 버틴다").Game("P"));
+
+            // ═══════════════════════════════════════════════════════════
+            // 4장 — 걷기 보상
+            // ═══════════════════════════════════════════════════════════
+            ch = new Chapter { title = "4. 걷기 보상", doc = "04-걷기-보상.md",
+                goals = new[] { "목표 상자와 걷기 에이전트를 직접 붙인다", "몸이 기울어도 변하지 않는 '보는 방향'을 계산한다", "속도 × 방향 보상으로 스스로 걷는 정책을 학습한다 (최종 과제)" } };
+            list.Add(ch);
+
+            ch.steps.Add(new Step { title = "빈칸 4-1  좌우 회전만", blank = "4-1",
+                goal = "바라보는 방향에서 앞뒤 기울기를 버리고 좌우 회전만 남긴다",
+                concept = "목표 방향을 '내가 보는 방향' 기준으로 관측한다. 목표가 오른쪽이면 언제나 x가 양수.\n" +
+                          "그런데 걷는 몸은 앞뒤로 기운다. 기운 정면을 쓰면 '땅을 보는 방향'이 된다.\n" +
+                          "그래서 forward.y = 0 으로 만든 뒤 LookRotation.\n" +
+                          "바로 위/아래를 볼 때는 수평 성분이 없으니 Quaternion.identity.",
+                skeleton = "forward.y = ___;\nif (forward.sqrMagnitude < 1e-6f) return Quaternion.identity;\nreturn Quaternion.LookRotation(___);",
+                hint = "forward.y = 0f;  …  Quaternion.LookRotation(forward.normalized)" });
+
+            s = new Step { title = "목표 상자", goal = "걸어갈 목표를 학습 영역에 놓는다",
+                concept = "에이전트가 판마다 이 상자를 몸 주변 4~8m 무작위 자리로 옮긴다. 닿으면 +1 하고 다음 자리로.\n" +
+                          "콜라이더는 지운다. 닿음은 거리로 판정하므로, 콜라이더가 있으면 걸려 넘어지기만 한다.",
+                solve = () => Replace(Target, () => { var t = GameObject.CreatePrimitive(PrimitiveType.Cube); t.name = "Target"; t.transform.SetParent(T(Area), false); t.transform.localPosition = new Vector3(0f, 0.25f, 6f); t.transform.localScale = Vector3.one * 0.5f; Object.DestroyImmediate(t.GetComponent<Collider>()); t.GetComponent<Renderer>().sharedMaterial = HumanoidBuild.Mat("M_WalkTarget", new Color(0.95f, 0.3f, 0.3f)); return t; }) };
+            s.Do("HumanoidArea 아래에 3D Object > Cube, 이름 Target", () => ChildOf(Target, Area)).Hier(Area, "우클릭 ▸ 3D Object ▸ Cube ▸ 이름 Target");
+            s.Do("Position (0, 0.25, 6) · Scale (0.5, 0.5, 0.5)", () => LocalPos(Target, new Vector3(0f, 0.25f, 6f)) && Near(T(Target).localScale, Vector3.one * 0.5f)).Insp(Target, typeof(Transform), "Position · Scale");
+            ch.steps.Add(s.Do("Box Collider 를 지운다 (⋮ > Remove Component)", () => T(Target) != null && T(Target).GetComponent<Collider>() == null).Insp(Target, typeof(BoxCollider), "⋮ ▸ Remove Component"));
+
+            s = new Step { title = "걷기 에이전트로 바꾸기", goal = "Stand Agent 를 Walk Agent 로 바꾼다",
+                concept = "Walk Agent 는 Stand Agent 를 상속한다. 관측 36 · 행동 12 · 넘어지면 끝내기는 그대로이고\n" +
+                          "관측 3개(목표 방향 2 + 목표 속도 1)와 보상만 바뀐다. 한 번에 하나씩.\n\n" +
+                          "Decision Requester 가 에이전트를 필요로 해서, 새 것을 먼저 붙이고 옛 것을 지운다.\n" +
+                          "걷기를 배우는 동안은 밀지 않는다 (Push Interval 0). 한 판 40초 (Max Step 2000).",
+                solve = () => { var go = G(Root); if (!Has<WalkAgent>(Root)) Undo.AddComponent<WalkAgent>(go); foreach (var a in go.GetComponents<StandAgent>()) if (!(a is WalkAgent)) Undo.DestroyObjectImmediate(a); Set<WalkAgent>(Root, w => { w.target = T(Target); w.targetSpeed = 1f; w.pushInterval = 0; w.MaxStep = 2000; }); } };
+            s.Do("Humanoid 에 Add Component > Walk Agent", () => Has<WalkAgent>(Root)).Insp(Root, typeof(WalkAgent), "Add Component ▸ Walk Agent");
+            s.Do("Stand Agent 를 지운다 (⋮ > Remove Component)", () => T(Root) != null && T(Root).GetComponents<StandAgent>().Length == 1).Insp(Root, typeof(StandAgent), "Stand Agent 의 ⋮ ▸ Remove Component");
+            s.Do("Walk Agent 의 Target 칸에 Target 을 끌어다 놓는다", () => Has<WalkAgent>(Root) && Get<WalkAgent>(Root).target == T(Target)).Insp(Root, typeof(WalkAgent), "Target ← Hierarchy 의 Target 을 끌어다 놓기");
+            ch.steps.Add(s.Do("Target Speed 1 · Push Interval 0 · Max Step 2000", () => Has<WalkAgent>(Root) && Near(Get<WalkAgent>(Root).targetSpeed, 1f) && Get<WalkAgent>(Root).pushInterval == 0 && Get<WalkAgent>(Root).MaxStep == 2000).Insp(Root, typeof(WalkAgent), "Target Speed · Push Interval · Max Step"));
+
+            s = new Step { title = "두뇌 설정", goal = "걷기용 이름과 관측 수로 바꾼다",
+                concept = "Behavior Name 을 바꾸면 서기와 다른 두뇌로 학습된다 → HumanoidWalk\n" +
+                          "관측 39 = 서기 36 + 목표 방향 2 + 목표 속도 1. 행동은 그대로 12.",
+                solve = () => Set<BehaviorParameters>(Root, b => { b.BehaviorName = "HumanoidWalk"; b.BrainParameters.VectorObservationSize = 39; }) };
+            s.Do("Behavior Name: HumanoidWalk", () => Brain != null && Brain.BehaviorName == "HumanoidWalk").Insp(Root, typeof(BehaviorParameters), "Behavior Name");
+            ch.steps.Add(s.Do("Space Size: 39", () => Brain != null && Brain.BrainParameters.VectorObservationSize == 39).Insp(Root, typeof(BehaviorParameters), "Vector Observation ▸ Space Size"));
+
+            ch.steps.Add(new Step { title = "빈칸 4-2  속도 보상", blank = "4-2",
+                goal = "목표 속도로 목표 쪽으로 가면 1, 멈추면 0",
+                concept = "d = |velocity − direction × targetSpeed| 를 0~targetSpeed 로 자르고,  (1 − (d/targetSpeed)²)²\n" +
+                          "위아래 속도(velocity.y)는 버린다 — 떨어지는 속도는 걷기가 아니다.\n" +
+                          "몸 전체 속도는 1장 무게중심 함수에 속도를 넣어 구한다.",
+                skeleton = "velocity.y = 0f;\nfloat d = Mathf.Clamp(___, 0f, targetSpeed);\nfloat r = 1f - (d / targetSpeed) * (d / targetSpeed);\nreturn ___;",
+                hint = "(velocity - direction * targetSpeed).magnitude  …  return r * r;" });
+
+            ch.steps.Add(new Step { title = "빈칸 4-3  방향 보상", blank = "4-3",
+                goal = "목표 쪽을 보면 1, 옆이면 0.5, 반대면 0",
+                concept = "(내적 + 1) / 2.  둘 다 y를 버리고 길이 1로 만든 뒤 내적한다.\n\n" +
+                          "보상 = 속도 × 방향. 곱하면 둘 다 만족해야 점수가 난다.\n" +
+                          "더하면 '목표를 보고 서 있기'나 '뒷걸음질'도 절반을 받아 AI가 쉬운 쪽만 한다.",
+                skeleton = "forward.y = 0f;\ndirection.y = 0f;\nreturn (Vector3.Dot(___, ___) + 1f) * 0.5f;",
+                hint = "Vector3.Dot(forward.normalized, direction.normalized)" });
+
+            s = new Step { title = "서 있으면 0점", goal = "학습 전 상태를 확인한다",
+                concept = "Heuristic Only 로 Play하면 키보드로 아무리 움직여도 보상이 거의 0이다.\n" +
+                          "사람이 손으로 12축을 맞춰 걷게 만들 수는 없다. 그래서 학습한다." };
+            s.Do("Behavior Type 을 Heuristic Only 로 바꾼다", () => IsBehavior(BehaviorType.HeuristicOnly), "바꾸기", () => SetBehavior(BehaviorType.HeuristicOnly)).Insp(Root, typeof(BehaviorParameters), "Behavior Type");
+            PlayStep(s).Do("화면의 보상이 거의 0인 것을 본다", () => Playing && Has<WalkAgent>(Root) && Get<WalkAgent>(Root).StepCount > 100).Game("관찰 (왼쪽 위 보상)");
+            StopStep(s);
+            ch.steps.Add(s.Do("Behavior Type 을 Default 로 되돌린다", () => !Playing && IsBehavior(BehaviorType.Default), "되돌리기", () => SetBehavior(BehaviorType.Default)).Insp(Root, typeof(BehaviorParameters), "Behavior Type"));
+
+            s = new Step { title = "걷기 학습", goal = "스스로 걷는 정책을 학습한다",
+                concept = "mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk\n" +
+                          "걷기는 오래 걸린다. 5장의 병렬 학습(영역 9개 · 빌드 4개)을 먼저 하면 그만큼 빠르다.\n\n" +
+                          "실측(에이전트 36개): 100만 37 → 300만 531(급상승) → 1000만 약 1430, 약 50분.\n" +
+                          "평가: 목표 1.0 m/s · 10판 · 넘어짐 0 · 40초에 목표 5.5개 도달.",
+                done = "4장 끝 — 최종 과제 완성. 5장은 더 빨리 · 더 넓게 · 제대로 재는 법이다." };
+            s.Do("학습 명령을 복사해 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk"));
+            ch.steps.Add(s.Do("학습된 모델로 Play → 빨간 상자를 향해 걷고, 닿으면 다음 상자로 방향을 튼다"));
 
             return list;
         }

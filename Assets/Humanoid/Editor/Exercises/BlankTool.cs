@@ -78,7 +78,7 @@ namespace HumanoidEditor
 
         // ── 개발자용: 빈칸 검증 (모두 빈칸 → 전체 채점은 실패, 모두 되돌리기 → 전체 채점은 통과) ──
 
-        public static readonly string[] All = { "1-1", "2-1", "2-2", "3-1", "3-2" };
+        public static readonly string[] All = { "1-1", "2-1", "2-2", "3-1", "3-2", "4-1", "4-2", "4-3" };
 
         [MenuItem("Humanoid/개발자/모든 빈칸 만들기", false, 300)]
         static void MakeAll() { foreach (var id in All) Make(id); }

@@ -79,5 +79,49 @@ namespace Humanoid
             return Mathf.Clamp01(up.y) * Mathf.Clamp01(height / standHeight);
             // ▲ 빈칸 3-2 | return 0f;
         }
+
+        // ══ 4장 ══════════════════════════════════════════════════════
+
+        /// <summary>
+        /// [빈칸 4-1] 바라보는 방향의 "좌우 회전만" 남긴 회전.
+        /// 몸이 앞뒤로 기울어도 "어느 쪽을 보고 있나"는 그대로여야 한다. 그래서 forward 의 y를 버린다.
+        /// forward 가 거의 위/아래(수평 성분이 없음)면 Quaternion.identity.
+        /// </summary>
+        public static Quaternion HeadingRotation(Vector3 forward)
+        {
+            // ▼ 빈칸 4-1
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-6f) return Quaternion.identity;
+            return Quaternion.LookRotation(forward.normalized);
+            // ▲ 빈칸 4-1 | return Quaternion.identity;
+        }
+
+        /// <summary>
+        /// [빈칸 4-2] 속도 보상(0~1). 목표 속도 = direction × targetSpeed.
+        ///   차이 d = |velocity − 목표 속도| 를 0~targetSpeed 로 자르고,  (1 − (d/targetSpeed)²)²
+        /// 위아래 속도(velocity.y)는 버린다. 떨어지는 속도를 걷기로 치지 않도록.
+        /// </summary>
+        public static float SpeedReward(Vector3 velocity, Vector3 direction, float targetSpeed)
+        {
+            // ▼ 빈칸 4-2
+            velocity.y = 0f;
+            float d = Mathf.Clamp((velocity - direction * targetSpeed).magnitude, 0f, targetSpeed);
+            float r = 1f - (d / targetSpeed) * (d / targetSpeed);
+            return r * r;
+            // ▲ 빈칸 4-2 | return 0f;
+        }
+
+        /// <summary>
+        /// [빈칸 4-3] 방향 보상(0~1). 같은 쪽을 보면 1, 반대면 0, 옆이면 0.5.  (내적 + 1) / 2
+        /// 둘 다 y를 버리고 길이 1로 만든 뒤 내적한다. (고개를 숙인 것은 따지지 않는다)
+        /// </summary>
+        public static float FacingReward(Vector3 forward, Vector3 direction)
+        {
+            // ▼ 빈칸 4-3
+            forward.y = 0f;
+            direction.y = 0f;
+            return (Vector3.Dot(forward.normalized, direction.normalized) + 1f) * 0.5f;
+            // ▲ 빈칸 4-3 | return 0f;
+        }
     }
 }
