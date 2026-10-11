@@ -22,6 +22,15 @@ namespace HumanoidEditor
             ("1-1", "부품 하나 (경계) → 그 자리", new Vector3(0.3f, 0.9f, -0.2f), () => M.CenterOfMass(new[] { new Vector3(0.3f, 0.9f, -0.2f) }, new[] { 8f })),
             ("1-1", "부품 없음 (경계) → (0,0,0)", Vector3.zero, () => M.CenterOfMass(new Vector3[0], new float[0])),
 
+            ("2-1", "엉덩이(-30~90) · +1 → 90", 90f, () => M.ActionToAngle(1f, -30f, 90f)),
+            ("2-1", "엉덩이 · -0.5 → -15", -15f, () => M.ActionToAngle(-0.5f, -30f, 90f)),
+            ("2-1", "행동 0 (경계) → 0도 차렷", 0f, () => M.ActionToAngle(0f, -30f, 90f)),          // 범위 가운데로 보내는 방식이면 30
+            ("2-1", "행동 3 (경계: 범위 밖) → 90", 90f, () => M.ActionToAngle(3f, -30f, 90f)),
+            ("2-1", "무릎(-120~0) · +1 (경계) → 0", 0f, () => M.ActionToAngle(1f, -120f, 0f)),
+            ("2-2", "무릎 -60도 → -0.5", -0.5f, () => M.AngleToAction(-60f, -120f, 0f)),
+            ("2-2", "엉덩이 45도 → 0.5", 0.5f, () => M.AngleToAction(45f, -30f, 90f)),
+            ("2-2", "한계를 넘은 -40도 (경계) → -1", -1f, () => M.AngleToAction(-40f, -30f, 90f)),
+            ("2-2", "무릎 +3도 (경계: high=0) → 0, NaN 아님", 0f, () => M.AngleToAction(3f, -120f, 0f)),
 
 
 

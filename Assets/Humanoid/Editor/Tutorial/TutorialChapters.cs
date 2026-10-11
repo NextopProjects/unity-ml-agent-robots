@@ -363,6 +363,72 @@ namespace HumanoidEditor
                 hint = "sum += positions[i] * masses[i];  마지막은  totalMass > 0f ? sum / totalMass : Vector3.zero",
                 done = "1장 끝 — 학습 환경이 준비됐다. 다음은 이 몸을 움직인다." });
 
+            // ═══════════════════════════════════════════════════════════
+            // 2장 — 기초 움직임
+            // ═══════════════════════════════════════════════════════════
+            ch = new Chapter { title = "2. 기초 움직임", doc = "02-기초-움직임.md",
+                goals = new[] { "관절 모터(PD)가 목표 각도로 당기는 힘이라는 것을 안다", "행동(-1~1) ↔ 관절 각도를 변환한다", "모터만으로는 밀면 넘어진다는 것을 확인한다" } };
+            list.Add(ch);
+
+            s = new Step { title = "모터 켜기", goal = "관절에 목표 각도로 당기는 힘을 준다",
+                concept = "힘 = spring × (목표 각도 − 지금 각도) − damper × 회전 속도\n" +
+                          "AI가 정하는 것은 '목표 각도'뿐이다. 힘은 이 스프링이 낸다. (PD 제어)\n" +
+                          "damper 는 출렁임을 잡는다. 보통 spring 의 1/10.\n\n" +
+                          "실측(무릎 굽히기를 2초에 걸쳐): spring 300은 2.1초, 1000은 3.6초에 넘어졌다. 4000은 버틴다.",
+                solve = () => Set<HumanoidBody>(Root, b => { b.spring = 4000f; b.damper = 400f; }) };
+            s.Do("Humanoid 의 Humanoid Body 에서 Spring 4000", () => Body != null && Near(Body.spring, 4000f)).Insp(Root, typeof(HumanoidBody), "Spring");
+            ch.steps.Add(s.Do("Damper 400", () => Body != null && Near(Body.damper, 400f)).Insp(Root, typeof(HumanoidBody), "Damper"));
+
+            ch.steps.Add(new Step { title = "빈칸 2-1  행동 → 각도", blank = "2-1",
+                goal = "행동(-1~1)을 관절 목표 각도로 바꾼다. 0은 언제나 0도(차렷)",
+                concept = "action  -1 ─── 0 ─── +1\nangle   low    0     high\n\n" +
+                          "양쪽을 따로 늘린다. low는 음수라는 것에 주의.\n" +
+                          "범위 밖 행동(3, -1.5 …)은 -1~1로 자른다.\n\n" +
+                          "범위 가운데를 0으로 두면 무릎(-120~0)의 0이 -60도 = 반쯤 주저앉은 자세가 된다.\n" +
+                          "0 = 차렷으로 두면 학습이 서 있는 자세에서 시작한다.\n" +
+                          "이 함수가 키보드와 AI의 숫자를 관절로 보낸다.",
+                skeleton = "action = Mathf.Clamp(___, -1f, 1f);\nreturn action >= 0f ? ___ : ___;",
+                hint = "양수면 action * high,  음수면 -action * low.  예: action -0.5, low -30 → 0.5 × (-30) = -15",
+                done = "이제 키보드로 이 함수를 써 본다." });
+
+            s = new Step { title = "키보드 조작 붙이기", goal = "키보드로 관절 12축을 움직이고 화면에 각도를 띄운다",
+                concept = "키보드가 만드는 것도 AI와 같은 '행동 12개(-1~1)'다. 3장부터는 AI가 이 자리에 들어온다.\n" +
+                          "  ←→ 관절 고르기 · ↑↓ 움직이기 · 1 차렷 · 2 무릎 굽히기 · H 매달기 · P 밀기 · R 처음으로\n" +
+                          "행동 순서: 허리 앞뒤·좌우 | 왼 엉덩이 앞뒤·좌우, 무릎, 발목 앞뒤·좌우 | 오른쪽 같은 순서",
+                solve = () => Set<KeyboardControl>(Root, k => k.driveBody = true) };
+            ch.steps.Add(s.Do("Humanoid 에 Add Component > Keyboard Control", () => Has<KeyboardControl>(Root)).Insp(Root, typeof(KeyboardControl), "Add Component ▸ Keyboard Control"));
+
+            s = new Step { title = "손으로 관절 돌려 보기", goal = "AI보다 먼저, 사람이 몸을 움직여 확인한다",
+                concept = "화면 왼쪽 위에 관절마다 목표/실제 각도가 보인다.\n" +
+                          "공중에 매달면 넘어질 걱정 없이 관절만 볼 수 있다.\n" +
+                          "자세는 2초에 걸쳐 바꾼다. 한 번에 바꾸면 그 움직임에 몸이 밀려 넘어진다.",
+                hint = "Game 창을 한 번 클릭해야 키보드 입력이 들어간다." };
+            PlayStep(s);
+            s.Do("H 로 공중에 매단다", () => Playing && Body != null && Body.pelvis != null && Body.pelvis.rb != null && Body.pelvis.rb.isKinematic).Game("H");
+            s.Do("←→ 로 관절을 고르고 ↑↓ 로 끝까지 돌린다. 목표와 실제가 같이 움직인다", () => Playing && Has<KeyboardControl>(Root) && Get<KeyboardControl>(Root).actions != null && Array.Exists(Get<KeyboardControl>(Root).actions, a => Mathf.Abs(a) > 0.95f)).Game("← → 로 고르기, ↑ ↓ 로 돌리기");
+            ch.steps.Add(s.Do("H 로 내리고 2 를 눌러 무릎을 굽힌다 — 넘어지지 않는다", () => Playing && Body != null && Body.pelvis.rb != null && !Body.pelvis.rb.isKinematic && Body.Angle(4) < -30f && !Body.HasFallen).Game("H, 2"));
+
+            ch.steps.Add(new Step { title = "빈칸 2-2  각도 → -1~1", blank = "2-2",
+                goal = "관절 각도를 -1~1로 되돌린다 (2-1의 거꾸로)",
+                concept = "3장에서 AI에게 '지금 자세'를 보여줄 때 쓴다.\n" +
+                          "각도를 그대로 넣으면 무릎(-120)과 발목(±35)의 크기가 달라 큰 숫자가 학습을 지배한다.\n" +
+                          "\"범위의 몇 %까지 갔나\"로 바꿔 넣는다.\n\n" +
+                          "나눌 범위가 0이면(무릎의 high) 0을 돌려준다. 0으로 나누면 NaN이 되어 학습이 망가진다.\n" +
+                          "관절은 한계를 살짝 넘기도 하니 결과를 -1~1로 자른다.",
+                skeleton = "float range = angle >= 0f ? ___ : ___;\nif (range <= 0f) return 0f;\nreturn Mathf.Clamp(___, -1f, 1f);",
+                hint = "range 는 양수가 되게: high 또는 -low.  마지막은 angle / range" });
+
+            s = new Step { title = "밀어서 넘어뜨리기", goal = "관절이 단단한 것과 균형을 잡는 것이 다르다는 것을 본다",
+                concept = "모터는 '관절 각도'를 지킬 뿐 '몸 전체가 쓰러지는지'는 모른다. (실측: 몸통을 미는 세기)\n" +
+                          "  10 N·s  앞 버팀 · 옆 버팀 · 뒤 넘어짐 (뒤꿈치가 짧다)\n" +
+                          "  20 N·s  앞 · 옆 · 뒤 모두 넘어짐\n\n" +
+                          "넘어지지 않으려면 발을 내딛거나 발목·엉덩이를 순간적으로 틀어야 한다. 그 판단을 3장에서 AI가 배운다.\n" +
+                          "R 을 누르면 몸과 목표 각도가 모두 차렷으로 돌아간다.",
+                done = "2장 끝 — 강화학습 전 환경 구성이 끝났다. 이 문제를 AI에게 맡긴다." };
+            PlayStep(s).Do("1 로 차렷 자세에서 P 로 민다 → 넘어진다").Game("1, P");
+            s.Do("R 로 다시 세운다").Game("R");
+            ch.steps.Add(StopStep(s));
+
             return list;
         }
     }

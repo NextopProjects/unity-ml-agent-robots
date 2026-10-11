@@ -47,6 +47,7 @@ namespace Humanoid
         public void ResetBody()
         {
             foreach (var p in _parts) p.ResetPose();     // 부모부터 되돌려야 자식 위치가 맞는다
+            SetActions(new float[JointCount]);           // 목표도 차렷으로
         }
 
         // ── 1장: 무게중심 ───────────────────────────────────────────
@@ -79,6 +80,51 @@ namespace Humanoid
                 return false;
             }
         }
+
+        // ── 2장: 관절 ───────────────────────────────────────────────
+
+        /// <summary>i번 축의 가동 범위(도). Z축(좌우)은 양쪽이 같다.</summary>
+        public Vector2 Range(int i)
+        {
+            var j = _dofPart[i].joint;
+            return _dofIsZ[i] ? new Vector2(-j.angularZLimit.limit, j.angularZLimit.limit)
+                              : new Vector2(j.lowAngularXLimit.limit, j.highAngularXLimit.limit);
+        }
+
+        /// <summary>행동 12개(-1~1)를 관절 목표 각도로 바꿔 모터에 넣는다. [빈칸 2-1]</summary>
+        public void SetActions(float[] actions)
+        {
+            float x = 0f, z = 0f;
+            for (int i = 0; i < JointCount; i++)
+            {
+                Vector2 r = Range(i);
+                float angle = HumanoidMath.ActionToAngle(actions[i], r.x, r.y);
+                if (_dofIsZ[i]) z = angle; else x = angle;
+
+                // 한 관절의 X·Z가 다 모이면 모터에 넣는다.
+                // targetRotation 은 Transform과 부호가 반대지만, 가동 범위도 같은 공간이라 그대로 넣으면 맞다.
+                if (i == JointCount - 1 || _dofPart[i + 1] != _dofPart[i])
+                {
+                    _dofPart[i].joint.targetRotation = Quaternion.Euler(x, 0f, z);
+                    x = z = 0f;
+                }
+            }
+        }
+
+        /// <summary>i번 축의 지금 각도를 -1~1로. [빈칸 2-2]</summary>
+        public float NormalizedAngle(int i)
+        {
+            Vector2 a = _dofPart[i].Angles, r = Range(i);
+            return HumanoidMath.AngleToAction(_dofIsZ[i] ? a.y : a.x, r.x, r.y);
+        }
+
+        /// <summary>i번 축의 지금 각도(도). 화면 표시용.</summary>
+        public float Angle(int i) => _dofIsZ[i] ? _dofPart[i].Angles.y : _dofPart[i].Angles.x;
+
+        /// <summary>i번 축이 도는 속도(라디안/초).</summary>
+        public float Rate(int i) => _dofIsZ[i] ? _dofPart[i].Rates.y : _dofPart[i].Rates.x;
+
+        public string JointName(int i) => _dofPart[i].name + (_dofIsZ[i] ? " 좌우" : " 앞뒤");
 
         // Scene 뷰에 무게중심(노란 점)과 바닥에 비친 자리를 그린다.
         void OnDrawGizmos()

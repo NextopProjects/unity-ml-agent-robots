@@ -26,5 +26,32 @@ namespace Humanoid
             return totalMass > 0f ? sum / totalMass : Vector3.zero;
             // ▲ 빈칸 1-1 | return Vector3.zero;
         }
+
+        // ══ 2장 ══════════════════════════════════════════════════════
+
+        /// <summary>
+        /// [빈칸 2-1] 행동(-1~1) → 목표 각도(도).  -1 → low,  0 → 0도(차렷),  +1 → high
+        /// 범위 밖 행동은 -1~1로 자른다.
+        /// </summary>
+        public static float ActionToAngle(float action, float low, float high)
+        {
+            // ▼ 빈칸 2-1
+            action = Mathf.Clamp(action, -1f, 1f);
+            return action >= 0f ? action * high : -action * low;
+            // ▲ 빈칸 2-1 | return 0f;
+        }
+
+        /// <summary>
+        /// [빈칸 2-2] 각도(도) → -1~1.  ActionToAngle 의 거꾸로. 결과는 -1~1로 자른다.
+        /// 나눌 범위가 0이면(무릎의 high) 0을 돌려준다. 0으로 나누면 NaN이 된다.
+        /// </summary>
+        public static float AngleToAction(float angle, float low, float high)
+        {
+            // ▼ 빈칸 2-2
+            float range = angle >= 0f ? high : -low;
+            if (range <= 0f) return 0f;
+            return Mathf.Clamp(angle / range, -1f, 1f);
+            // ▲ 빈칸 2-2 | return 0f;
+        }
     }
 }
