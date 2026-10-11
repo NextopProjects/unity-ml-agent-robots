@@ -596,6 +596,55 @@ namespace HumanoidEditor
             s.Do("학습 명령을 복사해 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk"));
             ch.steps.Add(s.Do("학습된 모델로 Play → 빨간 상자를 향해 걷고, 닿으면 다음 상자로 방향을 튼다"));
 
+            // ═══════════════════════════════════════════════════════════
+            // 5장 — 학습과 평가
+            // ═══════════════════════════════════════════════════════════
+            ch = new Chapter { title = "5. 학습과 평가", doc = "05-학습과-평가.md",
+                goals = new[] { "코드 수정 없이 병렬 학습한다", "커리큘럼으로 목표 속도를 올린다", "보상 말고 진짜 목표를 지표로 잰다" } };
+            list.Add(ch);
+
+            ch.steps.Add(new Step { title = "빈칸 5-1  누적 평균", blank = "5-1",
+                goal = "값을 저장하지 않고 평균을 갱신한다",
+                concept = "count-1개의 평균이 average 일 때 새 값을 더한 count개의 평균 = average + (value − average) / count\n" +
+                          "Walk Agent 가 이것으로 '판 평균 속도'를 재서 TensorBoard 의 Walk/Speed 에 남긴다.",
+                skeleton = "return average + ___;",
+                hint = "(value - average) / count" });
+
+            ch.steps.Add(new Step { title = "빈칸 5-2  속도 오차", blank = "5-2",
+                goal = "|평균 속도 − 목표 속도| / 목표 속도",
+                concept = "0이면 완벽, 1이면 100% 틀림. 두 배 빨라도 오차다.\n" +
+                          "보상이 올라도 실제로 이상하게 걸을 수 있다. 진짜 하고 싶은 것을 따로 잰다.\n" +
+                          "  Walk/Speed · Walk/SpeedError · Walk/FallRate · Walk/Targets",
+                skeleton = "if (targetSpeed <= 0f) return 0f;\nreturn ___;",
+                hint = "Mathf.Abs(averageSpeed - targetSpeed) / targetSpeed" });
+
+            s = new Step { title = "병렬 학습", goal = "학습 영역을 9개로 복제한다",
+                concept = "Behavior Name 이 같은 에이전트는 한 두뇌로 묶인다. 코드는 그대로, 경험은 9배.\n" +
+                          "1장에서 모든 것을 HumanoidArea 하나에 담은 이유가 이것이다.\n" +
+                          "직접 하려면 HumanoidArea 를 Ctrl+D 로 복제해 45m씩 띄운다(바닥이 40m). 8번 반복이라 버튼으로.\n" +
+                          "빌드해서 --num-envs=4 로 띄우면 9 × 4 = 에이전트 36개.",
+                solve = () => EditorApplication.ExecuteMenuItem("Humanoid/5. 학습 영역 9개로 복제") };
+            ch.steps.Add(s.Do("학습 영역을 9개로 만든다", () => GameObject.Find(Area + " 8") != null, "9개로 복제", () => EditorApplication.ExecuteMenuItem("Humanoid/5. 학습 영역 9개로 복제")).Hier(Area, "오른쪽 [9개로 복제] 버튼"));
+
+            s = new Step { title = "커리큘럼으로 학습", goal = "목표 속도를 0.5 → 1.0 → 1.5 로 올리며 학습한다",
+                concept = "yaml 맨 아래 environment_parameters 가 커리큘럼이다. 보상이 threshold 를 넘으면 다음 단계로.\n\n" +
+                          "1.0 으로만 학습한 모델을 평가하면(실측): 0.5 → 6/10 넘어짐 · 1.0 → 0/10 · 1.5 → 4/10.\n" +
+                          "배운 속도에서만 잘한다. 여러 속도를 쓰려면 여러 속도로 배워야 한다.\n\n" +
+                          "File > Build Profiles 로 빌드한 뒤:\n  mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk_curriculum --env=<빌드>.exe --no-graphics --num-envs=4",
+                hint = "Lesson Number 가 안 오르면 threshold 가 보상보다 높다. 'worker in use' 오류는 --base-port=5020 처럼 바꾼다." };
+            s.Do("yaml 을 열어 environment_parameters 를 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_config.yaml"));
+            s.Do("빌드한다 (씬 하나만 넣는다)");
+            s.Do("학습 명령을 복사해 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk_curriculum --env=Build/Humanoid.exe --no-graphics --num-envs=4"));
+            ch.steps.Add(s.Do("TensorBoard 에서 Environment/Lesson Number 와 Walk/… 지표를 본다"));
+
+            s = new Step { title = "평가하고 정리하기", goal = "학습된 모델을 목표 속도별로 평가하고 영역을 1개로 되돌린다",
+                concept = "학습 중 점수는 탐험 때문에 실력보다 낮다. 평가는 Inference Only 로 따로 한다.\n" +
+                          "Walk Agent 의 Target Speed 를 0.5 / 1.0 / 1.5 로 바꿔 가며 화면의 평균 속도 · 도달 수를 적는다.",
+                done = "휴머노이드 트랙 끝! 스스로 걷는 정책을 만들고, 평가까지 했다.",
+                solve = () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로") };
+            s.Do("목표 속도별 평가표를 채운다 (문서 05의 표)");
+            ch.steps.Add(s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼"));
+
             return list;
         }
     }

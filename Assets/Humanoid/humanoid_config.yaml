@@ -47,3 +47,27 @@ behaviors:
     max_steps: 10000000
     time_horizon: 1000
     summary_freq: 50000
+
+# ── 5장: 커리큘럼 — 목표 속도를 천천히 → 빠르게 ────────────────────────
+# WalkAgent가 판마다 "target_speed"를 읽는다. 이 부분을 지우면 Inspector 값(1.0)으로 고정된다.
+environment_parameters:
+  target_speed:
+    curriculum:
+      - name: Slow
+        completion_criteria:
+          measure: reward
+          behavior: HumanoidWalk
+          signal_smoothing: true
+          min_lesson_length: 100
+          threshold: 1000      # 1.0 고정 학습의 최종 보상(약 1430)의 70%. 커리큘럼 자체는 실측 전
+        value: 0.5
+      - name: Normal
+        completion_criteria:
+          measure: reward
+          behavior: HumanoidWalk
+          signal_smoothing: true
+          min_lesson_length: 100
+          threshold: 1000
+        value: 1.0
+      - name: Fast
+        value: 1.5

@@ -123,5 +123,30 @@ namespace Humanoid
             return (Vector3.Dot(forward.normalized, direction.normalized) + 1f) * 0.5f;
             // ▲ 빈칸 4-3 | return 0f;
         }
+
+        // ══ 5장 ══════════════════════════════════════════════════════
+
+        /// <summary>
+        /// [빈칸 5-1] 누적 평균. 지금까지 count-1개의 평균이 average 일 때, 새 값 value 를 더한 count개의 평균.
+        /// 값을 전부 저장하지 않고도 평균을 낼 수 있다.  average + (value − average) / count
+        /// </summary>
+        public static float RunningAverage(float average, int count, float value)
+        {
+            // ▼ 빈칸 5-1
+            return average + (value - average) / count;
+            // ▲ 빈칸 5-1 | return average;
+        }
+
+        /// <summary>
+        /// [빈칸 5-2] 속도 오차 비율. |평균 속도 − 목표 속도| / 목표 속도.  0이면 완벽, 1이면 100% 틀림.
+        /// 목표 속도가 0 이하면 0을 돌려준다.
+        /// </summary>
+        public static float SpeedError(float averageSpeed, float targetSpeed)
+        {
+            // ▼ 빈칸 5-2
+            if (targetSpeed <= 0f) return 0f;
+            return Mathf.Abs(averageSpeed - targetSpeed) / targetSpeed;
+            // ▲ 빈칸 5-2 | return 0f;
+        }
     }
 }

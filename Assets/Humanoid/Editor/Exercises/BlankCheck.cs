@@ -55,6 +55,13 @@ namespace HumanoidEditor
             ("4-3", "반대 → 0", 0f, () => M.FacingReward(Vector3.back, Vector3.forward)),
             ("4-3", "고개 숙임 (경계) → 1", 1f, () => M.FacingReward(new Vector3(0, -1, 1), Vector3.forward)),
 
+            ("5-1", "평균 2에 4를 더함 (2개째) → 3", 3f, () => M.RunningAverage(2f, 2, 4f)),
+            ("5-1", "평균 1(3개)에 5를 더함 → 2", 2f, () => M.RunningAverage(1f, 4, 5f)),
+            ("5-1", "첫 값 (경계: count=1) → 그 값", 7f, () => M.RunningAverage(0f, 1, 7f)),
+            ("5-2", "목표 1 · 실제 0.8 → 0.2", 0.2f, () => M.SpeedError(0.8f, 1f)),
+            ("5-2", "목표 0.5 · 실제 1.0 → 1", 1f, () => M.SpeedError(1f, 0.5f)),
+            ("5-2", "뒤로 감 (경계) → 1.5", 1.5f, () => M.SpeedError(-0.5f, 1f)),
+            ("5-2", "목표 0 (경계) → 0, NaN 아님", 0f, () => M.SpeedError(0.3f, 0f)),
         };
 
         /// <summary>id가 prefix로 시작하는 케이스를 실행한다. ("2-1" = 빈칸 하나, "" = 전부)</summary>
