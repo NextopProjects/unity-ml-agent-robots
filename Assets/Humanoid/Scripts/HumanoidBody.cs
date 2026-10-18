@@ -3,14 +3,12 @@ using UnityEngine;
 
 namespace Humanoid
 {
-    /// <summary>
-    /// 휴머노이드의 "몸". 키보드(2장)든 AI(3장~)든 몸은 항상 이 컴포넌트를 거쳐 움직인다.
-    /// </summary>
+    // 휴머노이드의 "몸". 키보드든 AI든 몸은 항상 이 컴포넌트를 거쳐 움직인다.
     public class HumanoidBody : MonoBehaviour
     {
         public BodyPart pelvis, torso, footL, footR;
 
-        [Header("관절 모터 (1장 = 0: 힘없는 래그돌)")]
+        [Header("관절 모터 (0 = 힘없는 래그돌)")]
         public float spring;    // 목표 각도로 당기는 힘
         public float damper;    // 흔들림을 잡는 힘 (보통 spring의 1/10)
 
@@ -18,11 +16,12 @@ namespace Humanoid
         Vector3[] _buffer;
         float[] _masses;
 
-        // 행동 i번이 움직이는 관절과 축. (허리 X·Z, 왼다리 엉덩이 X·Z, 무릎 X, 발목 X·Z, 오른다리 …)
+        // 행동 i번이 움직이는 관절과 축. Hierarchy 위에서 아래 순서다.
+        // (허리 X·Z, 왼 어깨 X·Z, 팔꿈치 X, 오른팔 …, 왼 엉덩이 X·Z, 무릎 X, 발목 X·Z, 오른다리 …)
         readonly List<BodyPart> _dofPart = new List<BodyPart>();
         readonly List<bool> _dofIsZ = new List<bool>();
 
-        public int JointCount => _dofPart.Count;     // = 12
+        public int JointCount => _dofPart.Count;     // = 18
 
         void Awake()
         {
@@ -50,7 +49,7 @@ namespace Humanoid
             SetActions(new float[JointCount]);           // 목표도 차렷으로
         }
 
-        // ── 1장: 무게중심 ───────────────────────────────────────────
+        // ── 무게중심 ───────────────────────────────────────────────
 
         public Vector3 CenterOfMass
         {
@@ -61,7 +60,7 @@ namespace Humanoid
             }
         }
 
-        /// <summary>몸 전체의 속도. 무게중심과 같은 식(질량 가중 평균)을 속도에 쓴다. (4장)</summary>
+        // 몸 전체의 속도. 무게중심과 같은 식(질량 가중 평균)을 속도에 쓴다.
         public Vector3 CenterOfMassVelocity
         {
             get
@@ -71,7 +70,7 @@ namespace Humanoid
             }
         }
 
-        /// <summary>발이 아닌 곳이 바닥에 닿았다 = 넘어졌다.</summary>
+        // 발이 아닌 곳이 바닥에 닿았다 = 넘어졌다.
         public bool HasFallen
         {
             get
@@ -81,9 +80,9 @@ namespace Humanoid
             }
         }
 
-        // ── 2장: 관절 ───────────────────────────────────────────────
+        // ── 관절 ───────────────────────────────────────────────────
 
-        /// <summary>i번 축의 가동 범위(도). Z축(좌우)은 양쪽이 같다.</summary>
+        // i번 축의 가동 범위(도). Z축(좌우)은 양쪽이 같다.
         public Vector2 Range(int i)
         {
             var j = _dofPart[i].joint;
@@ -91,7 +90,7 @@ namespace Humanoid
                               : new Vector2(j.lowAngularXLimit.limit, j.highAngularXLimit.limit);
         }
 
-        /// <summary>행동 12개(-1~1)를 관절 목표 각도로 바꿔 모터에 넣는다. [빈칸 2-1]</summary>
+        // 행동 18개(-1~1)를 관절 목표 각도로 바꿔 모터에 넣는다.
         public void SetActions(float[] actions)
         {
             float x = 0f, z = 0f;
@@ -111,17 +110,17 @@ namespace Humanoid
             }
         }
 
-        /// <summary>i번 축의 지금 각도를 -1~1로. [빈칸 2-2]</summary>
+        // i번 축의 지금 각도를 -1~1로.
         public float NormalizedAngle(int i)
         {
             Vector2 a = _dofPart[i].Angles, r = Range(i);
             return HumanoidMath.AngleToAction(_dofIsZ[i] ? a.y : a.x, r.x, r.y);
         }
 
-        /// <summary>i번 축의 지금 각도(도). 화면 표시용.</summary>
+        // i번 축의 지금 각도(도). 화면 표시용.
         public float Angle(int i) => _dofIsZ[i] ? _dofPart[i].Angles.y : _dofPart[i].Angles.x;
 
-        /// <summary>i번 축이 도는 속도(라디안/초).</summary>
+        // i번 축이 도는 속도(라디안/초).
         public float Rate(int i) => _dofIsZ[i] ? _dofPart[i].Rates.y : _dofPart[i].Rates.x;
 
         public string JointName(int i) => _dofPart[i].name + (_dofIsZ[i] ? " 좌우" : " 앞뒤");

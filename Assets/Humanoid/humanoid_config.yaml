@@ -1,6 +1,6 @@
 behaviors:
 
-  # ── 3장: 서기 (관측 36 / 연속 행동 12) ───────────────────────────────
+  # ── 3장: 서기 (관측 48 / 연속 행동 18) ───────────────────────────────
   HumanoidStand:
     trainer_type: ppo
     hyperparameters:
@@ -20,11 +20,11 @@ behaviors:
       extrinsic:
         gamma: 0.99             # 약 100스텝(2초) 앞까지 본다. 넘어지면 그만큼을 잃는다
         strength: 1.0
-    max_steps: 2000000
+    max_steps: 4000000        # 팔까지 행동 18개. 200만에서는 아직 오르는 중이었다 (실측: 200만 618 → 400만 876)
     time_horizon: 1000          # 한 판(MaxStep 1000)을 통째로 본다
     summary_freq: 20000
 
-  # ── 4장: 걷기 (관측 39 / 연속 행동 12) ───────────────────────────────
+  # ── 4장: 걷기 (관측 51 / 연속 행동 18) ───────────────────────────────
   HumanoidWalk:
     trainer_type: ppo
     hyperparameters:
@@ -59,7 +59,7 @@ environment_parameters:
           behavior: HumanoidWalk
           signal_smoothing: true
           min_lesson_length: 100
-          threshold: 1000      # 1.0 고정 학습의 최종 보상(약 1430)의 70%. 커리큘럼 자체는 실측 전
+          threshold: 2100      # 1.0 고정 학습의 최종 보상(약 3050)의 70%. 커리큘럼 자체는 실측 전
         value: 0.5
       - name: Normal
         completion_criteria:
@@ -67,7 +67,7 @@ environment_parameters:
           behavior: HumanoidWalk
           signal_smoothing: true
           min_lesson_length: 100
-          threshold: 1000
+          threshold: 2100
         value: 1.0
       - name: Fast
         value: 1.5

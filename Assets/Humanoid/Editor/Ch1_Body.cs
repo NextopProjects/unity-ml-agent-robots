@@ -6,14 +6,14 @@ using BodyPart = Humanoid.BodyPart;     // UnityEditor에도 같은 이름이 �
 
 namespace HumanoidEditor
 {
-    /// <summary>
-    /// 1장 — 학습 환경(영역 · 바닥 · 휴머노이드 부품 8 · 관절 7). 관절에 힘은 아직 없다(래그돌).
-    /// 튜토리얼 창의 [대신 해주기]가 조각 하나씩 쓰고, 메뉴는 전체를 한 번에 만든다(정답 씬).
-    /// </summary>
+    // 학습 환경(영역 · 바닥 · 휴머노이드 부품 12 · 관절 11). 관절에 힘은 아직 없다(래그돌).
+    // 튜토리얼 창의 [대신 해주기]가 조각 하나씩 쓰고, 메뉴는 전체를 한 번에 만든다(정답 씬).
     internal static class Ch1_Body
     {
         //   머리 꼭대기 1.69
         //   몸통 1.05~1.45   ← 허리 관절 1.04
+        //   위팔 1.16~1.42   ← 어깨 관절 1.42 (좌우 ±0.23)
+        //   아래팔 0.90~1.16 ← 팔꿈치 관절 1.16
         //   골반 0.88~1.04   ← 엉덩이 관절 0.90 (좌우 ±0.10)
         //   허벅지 0.48~0.90 ← 무릎 관절 0.48
         //   정강이 0.08~0.48 ← 발목 관절 0.08
@@ -32,16 +32,19 @@ namespace HumanoidEditor
             var pelvis = Pelvis(root);
             var torso = Torso(pelvis);
             WaistJoint(torso);
-            HeadAndArms(torso);
             var thighL = Thigh(pelvis, -0.10f);
             HipJoint(thighL);
+            var upperArmL = UpperArm(torso, -0.23f);
+            ShoulderJoint(upperArmL);
             RestOfLegs(thighL);
+            RestOfArms(upperArmL);
+            Head(torso);
             AddVisuals(root);
             Wire(root);
             PlaceCamera();
 
             Selection.activeGameObject = root;
-            Debug.Log("[Humanoid] 1장 정답 씬 — 부품 8 · 관절 7(12축) · 44kg. Play하면 래그돌처럼 무너지는 것이 정상입니다.");
+            Debug.Log("[Humanoid] 1장 정답 씬 — 부품 12 · 관절 11(18축) · 44kg. Play하면 래그돌처럼 무너지는 것이 정상입니다.");
         }
 
         // ── 조각 ────────────────────────────────────────────────────
@@ -53,7 +56,7 @@ namespace HumanoidEditor
             return area;
         }
 
-        /// <summary>바닥: 윗면 y = 0. Rigidbody가 없으니 BodyPart가 "바닥"으로 알아본다.</summary>
+        // 바닥: 윗면 y = 0. Rigidbody가 없으니 BodyPart가 "바닥"으로 알아본다.
         public static GameObject Ground(GameObject area)
         {
             var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -66,7 +69,7 @@ namespace HumanoidEditor
             return ground;
         }
 
-        /// <summary>Humanoid: 스케일 1인 빈 오브젝트. 몸 전체를 다루는 스크립트가 붙는다.</summary>
+        // Humanoid: 스케일 1인 빈 오브젝트. 몸 전체를 다루는 스크립트가 붙는다.
         public static GameObject Root(GameObject area)
         {
             var root = new GameObject("Humanoid");
@@ -78,21 +81,18 @@ namespace HumanoidEditor
         public static GameObject Pelvis(GameObject root) =>
             Part("Pelvis", root, new Vector3(0f, 0.96f, 0f), new Vector3(0.30f, 0.16f, 0.18f), 8f);
 
-        /// <summary>몸통(팔·머리 포함 14kg).</summary>
+        // 몸통(머리 포함 9kg).
         public static GameObject Torso(GameObject pelvis) =>
-            Part("Torso", pelvis, new Vector3(0f, 1.25f, 0f), new Vector3(0.32f, 0.40f, 0.20f), 14f);
+            Part("Torso", pelvis, new Vector3(0f, 1.25f, 0f), new Vector3(0.32f, 0.40f, 0.20f), 9f);
 
-        /// <summary>허리: 앞으로 40 · 뒤로 20 · 좌우 20</summary>
+        // 허리: 앞으로 40 · 뒤로 20 · 좌우 20
         public static void WaistJoint(GameObject torso) =>
             Joint(torso, torso.transform.parent.gameObject, 1.04f, -40f, 20f, 20f);
 
-        /// <summary>
-        /// 머리와 팔은 몸통에 붙은 장식이다. 관절을 주면 행동이 늘고 학습만 오래 걸린다.
-        /// 머리에는 콜라이더를 둔다. 머리가 바닥에 닿으면 넘어진 것이다.
-        /// </summary>
-        public static void HeadAndArms(GameObject torso)
+        // 머리는 몸통에 붙은 장식이다(관절 없음).
+        // 콜라이더는 둔다. 머리가 바닥에 닿으면 넘어진 것이다.
+        public static void Head(GameObject torso)
         {
-            var blue = Mat("M_HumanoidBody", new Color(0.25f, 0.5f, 0.85f));
             var head = new GameObject("Head");
             head.transform.SetParent(torso.transform, false);
             head.transform.localPosition = new Vector3(0f, 0.33f, 0f);
@@ -100,19 +100,43 @@ namespace HumanoidEditor
             Visual(PrimitiveType.Sphere, head.transform, Vector3.zero, Vector3.one * 0.22f, Mat("M_HumanoidHead", new Color(0.92f, 0.85f, 0.75f)));
             // 얼굴 띠: 어느 쪽이 앞인지 보이게
             Visual(PrimitiveType.Cube, head.transform, new Vector3(0f, 0.02f, 0.09f), new Vector3(0.16f, 0.05f, 0.05f), Mat("M_HumanoidFace", Color.black));
-            Visual(PrimitiveType.Cube, torso.transform, new Vector3(-0.21f, -0.05f, 0f), new Vector3(0.08f, 0.48f, 0.08f), blue);
-            Visual(PrimitiveType.Cube, torso.transform, new Vector3(0.21f, -0.05f, 0f), new Vector3(0.08f, 0.48f, 0.08f), blue);
-            Undo.RegisterCreatedObjectUndo(head, "머리·팔");
+            Undo.RegisterCreatedObjectUndo(head, "머리");
+        }
+
+        // 위팔 1.5kg. 몸통 옆면(±0.16)에서 0.03 띄운다 — 붙이면 아래팔이 몸통에 걸린다.
+        public static GameObject UpperArm(GameObject torso, float x) =>
+            Part("UpperArm" + (x < 0 ? "L" : "R"), torso, new Vector3(x, 1.29f, 0f), new Vector3(0.08f, 0.26f, 0.08f), 1.5f);
+
+        // 어깨: 뒤로 60 · 앞으로 120 · 좌우 30. 팔도 다리처럼 아래로 매달려 있어 X+ = 팔을 앞으로.
+        public static void ShoulderJoint(GameObject upperArm) =>
+            Joint(upperArm, upperArm.transform.parent.gameObject, 1.42f, -60f, 120f, 30f);
+
+        // 왼 위팔 아래(아래팔)와 오른팔 전체 — 다리와 같은 이유로 한 번에 만든다.
+        public static void RestOfArms(GameObject upperArmL)
+        {
+            var torso = upperArmL.transform.parent.gameObject;
+            Forearm(upperArmL, -0.23f);
+            var upperArmR = UpperArm(torso, 0.23f);
+            ShoulderJoint(upperArmR);
+            Forearm(upperArmR, 0.23f);
+        }
+
+        // 아래팔 1kg. 팔꿈치는 앞으로 접기만(1축) 0 ~ 130. 무릎(-120 ~ 0)과 접히는 방향이 반대다.
+        public static GameObject Forearm(GameObject upperArm, float x)
+        {
+            var forearm = Part("Forearm" + (x < 0 ? "L" : "R"), upperArm, new Vector3(x, 1.03f, 0f), new Vector3(0.07f, 0.26f, 0.07f), 1f);
+            Joint(forearm, upperArm, 1.16f, 0f, 130f, 0f);
+            return forearm;
         }
 
         public static GameObject Thigh(GameObject pelvis, float x) =>
             Part("Thigh" + (x < 0 ? "L" : "R"), pelvis, new Vector3(x, 0.69f, 0f), new Vector3(0.12f, 0.42f, 0.12f), 5f);
 
-        /// <summary>엉덩이: 뒤로 30 · 앞으로 90 · 좌우 25</summary>
+        // 엉덩이: 뒤로 30 · 앞으로 90 · 좌우 25
         public static void HipJoint(GameObject thigh) =>
             Joint(thigh, thigh.transform.parent.gameObject, 0.90f, -30f, 90f, 25f);
 
-        /// <summary>왼 허벅지 아래(정강이·발)와 오른다리 전체 — 같은 방법의 반복이라 한 번에 만든다.</summary>
+        // 왼 허벅지 아래(정강이·발)와 오른다리 전체 — 같은 방법의 반복이라 한 번에 만든다.
         public static void RestOfLegs(GameObject thighL)
         {
             var pelvis = thighL.transform.parent.gameObject;
@@ -122,7 +146,7 @@ namespace HumanoidEditor
             LowerLeg(thighR, 0.10f);
         }
 
-        /// <summary>정강이 → 발. 무릎은 접기만(1축), 발목 앞뒤 35 · 좌우 20.</summary>
+        // 정강이 → 발. 무릎은 접기만(1축), 발목 앞뒤 35 · 좌우 20.
         public static GameObject LowerLeg(GameObject thigh, float x)
         {
             string side = x < 0 ? "L" : "R";
@@ -137,7 +161,7 @@ namespace HumanoidEditor
             return foot;
         }
 
-        /// <summary>몸 스크립트(HumanoidBody)를 붙이고 부품을 연결한다.</summary>
+        // 몸 스크립트(HumanoidBody)를 붙이고 부품을 연결한다.
         public static void Wire(GameObject root)
         {
             var body = GetOrAdd<HumanoidBody>(root);
@@ -157,7 +181,7 @@ namespace HumanoidEditor
             cam.transform.LookAt(new Vector3(0f, 0.9f, 0f));
         }
 
-        /// <summary>보이는 모양이 없는 부품에 상자 모양을 붙인다. 크기는 콜라이더와 같게.</summary>
+        // 보이는 모양이 없는 부품에 상자 모양을 붙인다. 크기는 콜라이더와 같게.
         public static void AddVisuals(GameObject root)
         {
             foreach (var part in root.GetComponentsInChildren<BodyPart>())
@@ -181,7 +205,7 @@ namespace HumanoidEditor
             return null;
         }
 
-        /// <summary>부품 = 스케일 1인 본체(Rigidbody + 상자 콜라이더 + BodyPart). 모양은 AddVisuals가 붙인다.</summary>
+        // 부품 = 스케일 1인 본체(Rigidbody + 상자 콜라이더 + BodyPart). 모양은 AddVisuals가 붙인다.
         static GameObject Part(string name, GameObject parent, Vector3 center, Vector3 size, float mass)
         {
             var go = new GameObject(name);
@@ -194,10 +218,8 @@ namespace HumanoidEditor
             return go;
         }
 
-        /// <summary>
-        /// 관절. axis = X(앞뒤 굽히기), secondaryAxis = Y(비틀기, 잠금), 나머지 Z = 좌우.
-        /// 범위는 "관절 공간" 각도. X+ = 다리를 앞으로 / 몸통을 뒤로 / 발끝을 위로.
-        /// </summary>
+        // 관절. axis = X(앞뒤 굽히기), secondaryAxis = Y(비틀기, 잠금), 나머지 Z = 좌우.
+        // 범위는 "관절 공간" 각도. X+ = 다리를 앞으로 / 몸통을 뒤로 / 발끝을 위로.
         static void Joint(GameObject child, GameObject parent, float pivotY, float lowX, float highX, float z)
         {
             var j = child.AddComponent<ConfigurableJoint>();

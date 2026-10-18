@@ -5,11 +5,9 @@ using static HumanoidEditor.HumanoidBuild;
 
 namespace HumanoidEditor
 {
-    /// <summary>
-    /// 5장 — 학습 영역을 9개(3×3)로 복제한다. 학습 코드는 한 줄도 바꾸지 않는다.
-    /// Behavior Name이 같은 에이전트는 ML-Agents가 한 두뇌로 묶어 함께 학습한다 → 경험이 9배로 쌓인다.
-    /// 복제는 1~4장 메뉴를 다 실행한 뒤 마지막에 한다. (메뉴는 이름으로 첫 번째 영역만 찾는다)
-    /// </summary>
+    // 학습 영역을 9개(3×3)로 복제한다. 학습 코드는 한 줄도 바꾸지 않는다.
+    // Behavior Name이 같은 에이전트는 ML-Agents가 한 두뇌로 묶어 함께 학습한다 → 경험이 9배로 쌓인다.
+    // 복제는 몸 · 에이전트 구성을 다 마친 뒤 마지막에 한다. (메뉴는 이름으로 첫 번째 영역만 찾는다)
     internal static class Ch5_Parallel
     {
         [MenuItem("Humanoid/5. 학습 영역 9개로 복제", false, 5)]

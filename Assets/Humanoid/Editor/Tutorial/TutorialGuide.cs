@@ -4,16 +4,14 @@ using UnityEngine;
 
 namespace HumanoidEditor
 {
-    /// <summary>
-    /// 위치 안내 — "어디를 고쳐야 하나"를 화면에 표시한다.
-    ///
-    /// Unity 6 에서는 UnityEditor.Highlighter 가 Inspector 를 강조하지 못한다 (Unity-Tutorial 프로젝트 실측).
-    /// 그래서 공개 API 로 할 수 있는 것만 쓴다.
-    ///   Hierarchy · Project  해당 줄에 노란 배경 + "◀ 여기"   (hierarchy/projectWindowItemOnGUI)
-    ///   Scene 뷰             대상에 노란 와이어 상자          (SceneView.duringSceneGui)
-    ///   Inspector            [📍 여기 보기]: 선택 + 창 앞으로 + 고칠 컴포넌트만 펼치기
-    /// 튜토리얼 창이 매 0.1초 '지금 할 일'의 대상을 넣어 준다.
-    /// </summary>
+    // 위치 안내 — "어디를 고쳐야 하나"를 화면에 표시한다.
+    //
+    // Unity 6 에서는 UnityEditor.Highlighter 가 Inspector 를 강조하지 못한다 (Unity-Tutorial 프로젝트 실측).
+    // 그래서 공개 API 로 할 수 있는 것만 쓴다.
+    //   Hierarchy · Project  해당 줄에 노란 배경 + "◀ 여기"   (hierarchy/projectWindowItemOnGUI)
+    //   Scene 뷰             대상에 노란 와이어 상자          (SceneView.duringSceneGui)
+    //   Inspector            [📍 여기 보기]: 선택 + 창 앞으로 + 고칠 컴포넌트만 펼치기
+    // 튜토리얼 창이 매 0.1초 '지금 할 일'의 대상을 넣어 준다.
     [InitializeOnLoad]
     internal static class TutorialGuide
     {
@@ -28,7 +26,7 @@ namespace HumanoidEditor
             SceneView.duringSceneGui += OnScene;
         }
 
-        /// <summary>표시할 대상을 바꾼다. 없으면 null.</summary>
+        // 표시할 대상을 바꾼다. 없으면 null.
         public static void Set(Task task)
         {
             var go = task != null && task.path != null ? GameObject.Find(task.path) : null;
@@ -41,7 +39,7 @@ namespace HumanoidEditor
             SceneView.RepaintAll();
         }
 
-        /// <summary>[📍 여기 보기]: 대상을 선택하고 그 창을 앞으로 가져온다.</summary>
+        // [📍 여기 보기]: 대상을 선택하고 그 창을 앞으로 가져온다.
         public static void Reveal(Task task)
         {
             if (task == null) return;

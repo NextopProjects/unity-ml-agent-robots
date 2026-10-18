@@ -2,10 +2,8 @@ using UnityEngine;
 
 namespace Humanoid
 {
-    /// <summary>
-    /// 몸의 부품 하나 (골반·몸통·허벅지·정강이·발).
-    /// 처음 자세 기억 · 바닥 접촉 기록 · 관절 각도 읽기/쓰기만 한다.
-    /// </summary>
+    // 몸의 부품 하나 (골반·몸통·팔·허벅지·정강이·발).
+    // 처음 자세 기억 · 바닥 접촉 기록 · 관절 각도 읽기/쓰기만 한다.
     [RequireComponent(typeof(Rigidbody))]
     public class BodyPart : MonoBehaviour
     {
@@ -44,17 +42,15 @@ namespace Humanoid
         void OnCollisionStay(Collision c) { if (c.rigidbody == null) touchingGround = true; }
         void OnCollisionExit(Collision c) { if (c.rigidbody == null) touchingGround = false; }
 
-        // ── 2장: 관절 ───────────────────────────────────────────────
+        // ── 관절 ───────────────────────────────────────────────────
         // X = 앞뒤로 굽히기, Z = 좌우로 기울이기 (Y 비틀기는 잠갔다)
 
-        /// <summary>목표 각도(도). 모터가 이 각도로 당긴다.</summary>
+        // 목표 각도(도). 모터가 이 각도로 당긴다.
         public void SetTarget(float x, float z) => joint.targetRotation = Quaternion.Euler(x, 0f, z);
 
-        /// <summary>
-        /// 지금 관절 각도(도). 오일러각은 무릎을 90도 가까이 접으면 뒤집히므로 쓰지 않고,
-        /// "내 위쪽이 부모 기준으로 어디를 가리키나"로 계산한다.
-        /// targetRotation 은 Transform 과 부호가 반대라서(실측) 여기서도 부호를 뒤집어 맞춘다.
-        /// </summary>
+        // 지금 관절 각도(도). 오일러각은 무릎을 90도 가까이 접으면 뒤집히므로 쓰지 않고,
+        // "내 위쪽이 부모 기준으로 어디를 가리키나"로 계산한다.
+        // targetRotation 은 Transform 과 부호가 반대라서(실측) 여기서도 부호를 뒤집어 맞춘다.
         public Vector2 Angles
         {
             get
@@ -64,7 +60,7 @@ namespace Humanoid
             }
         }
 
-        /// <summary>관절이 도는 속도(라디안/초). 부모에 대한 상대 속도.</summary>
+        // 관절이 도는 속도(라디안/초). 부모에 대한 상대 속도.
         public Vector2 Rates
         {
             get

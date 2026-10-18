@@ -3,18 +3,16 @@ using UnityEngine.InputSystem;
 
 namespace Humanoid
 {
-    /// <summary>
-    /// 2장 — 키보드로 관절을 하나씩 움직이고, 화면에 각도를 보여준다.
-    /// 키보드가 만드는 것도 AI와 똑같은 "행동 12개(-1~1)"다. 3장부터는 AI가 이 자리에 들어온다.
-    /// </summary>
+    // 키보드로 관절을 하나씩 움직이고, 화면에 각도를 보여준다.
+    // 키보드가 만드는 것도 AI와 똑같은 "행동 18개(-1~1)"다. 에이전트를 붙이면 AI가 이 자리에 들어온다.
     [RequireComponent(typeof(HumanoidBody))]
     public class KeyboardControl : MonoBehaviour
     {
-        [Tooltip("끄면 키보드는 행동만 만들고 몸은 움직이지 않는다. (3장: 에이전트의 Heuristic이 대신 쓴다)")]
+        [Tooltip("끄면 키보드는 행동만 만들고 몸은 움직이지 않는다. (에이전트의 Heuristic이 대신 쓴다)")]
         public bool driveBody = true;
 
         [HideInInspector] public float[] actions;
-        [HideInInspector] public string statusLine;    // 에이전트가 채우는 한 줄 (3장~)
+        [HideInInspector] public string statusLine;    // 에이전트가 채우는 한 줄
 
         HumanoidBody _body;
         int _selected;
@@ -22,8 +20,8 @@ namespace Humanoid
         float _blend = 1f;
 
         // 무릎 굽히기 자세(도). 순서 = 행동 순서:
-        // 허리 앞뒤·좌우 | 왼 엉덩이 앞뒤·좌우, 무릎, 발목 앞뒤·좌우 | 오른쪽 같은 순서
-        static readonly float[] BendPose = { 0, 0, 20, 0, -40, 20, 0, 20, 0, -40, 20, 0 };
+        // 허리 앞뒤·좌우 | 왼 어깨 앞뒤·좌우, 팔꿈치 | 오른팔 | 왼 엉덩이 앞뒤·좌우, 무릎, 발목 앞뒤·좌우 | 오른다리
+        static readonly float[] BendPose = { 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, -40, 20, 0, 20, 0, -40, 20, 0 };
 
         void Start()
         {
@@ -81,10 +79,8 @@ namespace Humanoid
             }
         }
 
-        /// <summary>
-        /// 목표 각도를 전부 차렷(0)으로. 몸만 되돌리고 이것을 안 지우면
-        /// 이전 자세로 다시 당겨져 또 넘어진다. (R 키, 에이전트가 판을 새로 열 때)
-        /// </summary>
+        // 목표 각도를 전부 차렷(0)으로. 몸만 되돌리고 이것을 안 지우면
+        // 이전 자세로 다시 당겨져 또 넘어진다. (R 키, 에이전트가 판을 새로 열 때)
         public void ResetActions()
         {
             if (actions != null) System.Array.Clear(actions, 0, actions.Length);

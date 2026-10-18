@@ -6,7 +6,7 @@ using static HumanoidEditor.HumanoidBuild;
 
 namespace HumanoidEditor
 {
-    /// <summary>4장 — 서기 에이전트를 걷기 에이전트로 바꾸고 목표를 놓는다. 설명은 Docs/04-걷기-보상.md</summary>
+    // 서기 에이전트를 걷기 에이전트로 바꾸고 목표를 놓는다. 설명은 Docs/04-걷기-보상.md
     internal static class Ch4_Walk
     {
         [MenuItem("Humanoid/4. 걷기 에이전트로 바꾸기", false, 4)]
@@ -38,14 +38,14 @@ namespace HumanoidEditor
             walk.target = target;
             walk.targetSpeed = 1f;
             walk.pushInterval = 0;      // 한 번에 하나씩: 걷기를 배우는 동안은 밀지 않는다
-            walk.MaxStep = 2000;        // 40초
+            walk.MaxStep = 5000;        // 100초. 판은 주로 "목표 제한시간"으로 끝난다. 이건 잘 걸을 때의 안전 상한
 
             var bp = go.GetComponent<BehaviorParameters>();
             bp.BehaviorName = "HumanoidWalk";
-            bp.BrainParameters.VectorObservationSize = 39;      // 36 + 목표 방향 2 + 목표 속도 1
+            bp.BrainParameters.VectorObservationSize = 51;      // 48 + 목표 방향 2 + 목표 속도 1
 
             EditorUtility.SetDirty(go);
-            Debug.Log("[Humanoid] 4장 완료 — 관측 39 / 행동 12. mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk");
+            Debug.Log("[Humanoid] 4장 완료 — 관측 51 / 행동 18. mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk");
         }
     }
 }

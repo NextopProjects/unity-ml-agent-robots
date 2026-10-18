@@ -4,7 +4,7 @@ using static HumanoidEditor.HumanoidBuild;
 
 namespace HumanoidEditor
 {
-    /// <summary>2장 — 관절에 모터를 켜고 키보드 조작을 붙인다. 설명은 Docs/02-기초-움직임.md</summary>
+    // 관절에 모터를 켜고 키보드 조작을 붙인다. 설명은 Docs/02-기초-움직임.md
     internal static class Ch2_Joint
     {
         [MenuItem("Humanoid/2. 기초 움직임 붙이기 (정답 씬)", false, 2)]

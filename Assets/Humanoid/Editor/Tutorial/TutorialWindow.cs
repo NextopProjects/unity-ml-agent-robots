@@ -1,16 +1,15 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
 namespace HumanoidEditor
 {
-    /// <summary>
-    /// 휴머노이드 튜토리얼 창.  메뉴 > Humanoid > 튜토리얼 열기
-    ///
-    /// 위에서 아래로 읽는다:  🎯 목표 → 설명 → ▶ 지금 할 일 → ① ② ③ 할 일 → (끝나면) 다음 단계
-    /// 할 일은 위에서부터 하나씩 확인한다. 조건이 있는 할 일은 저절로 ✔ 가 되고, 없는 것은 [했어요]로 넘긴다.
-    /// 진행 상황은 EditorPrefs 에 저장되어 Play·컴파일·재시작 뒤에도 이어진다.
-    /// </summary>
+    // 휴머노이드 튜토리얼 창.  메뉴 > Humanoid > 튜토리얼 열기
+    //
+    // 위에서 아래로 읽는다:  🎯 목표 → 설명 → ▶ 지금 할 일 → ① ② ③ 할 일 → (끝나면) 다음 단계
+    // 할 일은 위에서부터 하나씩 확인한다. 조건이 있는 할 일은 저절로 ✔ 가 되고, 없는 것은 [했어요]로 넘긴다.
+    // 진행 상황은 EditorPrefs 에 저장되어 Play·컴파일·재시작 뒤에도 이어진다.
     internal class TutorialWindow : EditorWindow
     {
         const string Key = "Humanoid.Tutorial.";
@@ -18,9 +17,10 @@ namespace HumanoidEditor
 
         int _chapter;
         Vector2 _scroll;
-        bool _showSkeleton, _showHint, _showHelp;
-        List<BlankCheck.Result> _results;     // 마지막 채점 결과 (화면 표시용)
-        bool _blankOpen;                       // 빈칸에 아직 TODO가 있는가 (파일을 계속 읽지 않도록 저장해 둔다)
+        bool _showHint, _showHelp, _showCases;
+        List<BlankCheck.Result> _results;     // 마지막 테스트 결과 (화면 표시용)
+        bool _edited, _untouched;              // 시작 코드를 고쳤는가 (파일을 계속 읽지 않도록 저장해 둔다)
+        string _answer;                        // 힌트 5단계에 보여 줄 정답 (한 번만 읽는다)
         double _nextFileCheck;
 
         [MenuItem("Humanoid/튜토리얼 열기 %#h", false, 0)]
@@ -72,11 +72,11 @@ namespace HumanoidEditor
             {
                 if (EditorApplication.timeSinceStartup > _nextFileCheck)
                 {
-                    _blankOpen = BlankTool.IsOpen(step.blank);
+                    _edited = !BlankTool.Untouched(step.blank, step.start);
                     _nextFileCheck = EditorApplication.timeSinceStartup + 1.0;
                 }
-                // 코드를 고칠 차례면 Project 창에서 HumanoidMath.cs 를 표시한다
-                TutorialGuide.Set(Flag(BlankKey(step, "made")) && _blankOpen ? MathFile : null);
+                // 코드를 작성할 차례면 Project 창에서 HumanoidMath.cs 를 표시한다
+                TutorialGuide.Set(Flag(BlankKey(step, "made")) && !Flag(BlankKey(step, "pass")) ? MathFile : null);
             }
             else
             {
@@ -215,58 +215,138 @@ namespace HumanoidEditor
             }
         }
 
-        // 코드 단계: 빈칸 만들기 → 파일 열기 → 채점
+        // 코드 실습 단계: 구현 시작 → 직접 작성 → 테스트. 막히면 힌트를 한 단계씩 연다.
+        static readonly string[] HintNames = { "방향 · 핵심 개념", "구조와 처리 순서", "핵심 로직", "기본 코드 + 빈칸", "완성 코드 + 해설" };
+
         void DrawBlank(Step step)
         {
+            string id = step.blank;
+            if (!Flag(BlankKey(step, "made")) && BlankTool.Started(id)) SetFlag(BlankKey(step, "made"), true);     // 튜토리얼을 시작할 때 이미 시작 코드로 바뀌어 있다
             bool made = Flag(BlankKey(step, "made"));
             bool pass = Flag(BlankKey(step, "pass"));
-            bool filled = made && !_blankOpen;
 
-            BlankRow(made, !made, "① 빈칸을 만든다 — 정답이 // TODO 로 바뀐다", "빈칸 만들기", () =>
+            // 실습 형태와 요구사항: 무엇을 만들어야 통과인지 먼저 보여 준다
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            GUILayout.Label("🛠 " + (step.mode ?? "처음부터 직접 구현"), EditorStyles.boldLabel);
+            GUILayout.Label("테스트가 확인하는 요구사항", EditorStyles.miniBoldLabel);
+            foreach (var req in BlankCheck.Requirements(id))
             {
-                BlankTool.Make(step.blank);
+                var mine = _results?.FindAll(r => r.req == req);
+                string mark = mine == null || mine.Count == 0 ? "•" : mine.TrueForAll(r => r.pass) ? "✔" : "✘";
+                GUILayout.Label(mark + " " + req, EditorStyles.wordWrappedLabel);
+            }
+            EditorGUILayout.EndVertical();
+
+            BlankRow(made, !made, "① 구현을 시작한다 — 실습 자리가 시작 코드로 바뀐다 (정답은 따로 보관된다)", "구현 시작", () =>
+            {
+                BlankTool.Make(id, step.start);
                 SetFlag(BlankKey(step, "made"), true);
-                _blankOpen = true;
+                _edited = false;
                 _results = null;
+                _answer = null;
             });
-            BlankRow(filled, made && !filled, "② HumanoidMath.cs 를 열어 TODO 두 줄을 지우고 답을 써서 저장한다", "📄 파일 열기", () =>
-                AssetDatabase.OpenAsset(AssetDatabase.LoadAssetAtPath<MonoScript>(BlankTool.MathPath), BlankTool.Line(step.blank)));
-            if (made && !filled) DrawWhere(MathFile);
-            GUI.enabled = made && !EditorApplication.isCompiling;
-            BlankRow(pass, filled && !pass, "③ 채점한다 — 모든 케이스를 통과해야 한다", "▶ 채점하기", () =>
+            BlankRow(made && _edited, made && !_edited, "② HumanoidMath.cs 를 열어 직접 작성하고 저장한다", "📄 파일 열기", () =>
+                AssetDatabase.OpenAsset(AssetDatabase.LoadAssetAtPath<MonoScript>(BlankTool.MathPath), BlankTool.Line(id)));
+            if (made && !pass) DrawWhere(MathFile);
+
+            bool broken = EditorUtility.scriptCompilationFailed;
+            GUI.enabled = made && !EditorApplication.isCompiling && !broken;
+            BlankRow(pass, made && _edited && !pass, "③ 테스트를 실행한다 — 요구사항을 모두 만족하면 통과", "▶ 테스트 실행", () =>
             {
-                _blankOpen = BlankTool.IsOpen(step.blank);
-                _results = BlankCheck.Grade(step.blank);
-                SetFlag(BlankKey(step, "pass"), _results.TrueForAll(r => r.pass) && !_blankOpen);
+                _results = BlankCheck.Grade(id);
+                _untouched = BlankTool.Untouched(id, step.start);
+                SetFlag(BlankKey(step, "pass"), _results.TrueForAll(r => r.pass));
             });
             GUI.enabled = true;
+            if (made && broken)
+                EditorGUILayout.HelpBox("컴파일 오류가 있어 테스트할 수 없다 (고치기 전의 코드로 채점된다).\n" +
+                                        "Console 의 첫 빨간 줄에 파일 이름과 (줄, 칸)이 있다. 그 줄의 철자 · 세미콜론 · 괄호 짝을 본다.\n" +
+                                        "힌트 4단계 코드를 넣었다면 ___ 를 모두 채워야 컴파일된다.", MessageType.Error);
 
-            if (_results != null)
+            if (_results != null) DrawResults();
+            DrawHints(step, made);
+
+            if (made && GUILayout.Button("처음부터 다시: 시작 코드로 되돌리기", EditorStyles.miniButton)
+                && EditorUtility.DisplayDialog("시작 코드로 되돌리기", "지금 작성한 코드가 지워지고 시작 코드로 바뀝니다.", "되돌리기", "취소"))
             {
-                int ok = _results.FindAll(r => r.pass).Count;
-                GUILayout.Label("채점 결과  " + ok + " / " + _results.Count, EditorStyles.boldLabel);
+                BlankTool.Make(id, step.start);
+                _results = null;
+                GUIUtility.ExitGUI();
+            }
+        }
+
+        // 테스트 결과: 요구사항별로 묶어, 실패한 것은 원인 · 수정 방향 · 실패한 입력을 보여 준다
+        void DrawResults()
+        {
+            var reqs = _results.Select(r => r.req).Distinct().ToList();
+            int okReq = reqs.Count(q => _results.Where(r => r.req == q).All(r => r.pass));
+            GUILayout.Label("테스트 결과  요구사항 " + okReq + " / " + reqs.Count + "  ·  케이스 " + _results.Count(r => r.pass) + " / " + _results.Count, EditorStyles.boldLabel);
+
+            if (okReq == reqs.Count)
+                EditorGUILayout.HelpBox("✔ 모든 요구사항을 만족했다. 경계 입력까지 통과했으니 실제 학습에 써도 된다.", MessageType.Info);
+            else if (_untouched)
+                EditorGUILayout.HelpBox("아직 시작 코드 그대로다. 먼저 직접 작성해 본다. 어디서부터 할지 모르겠으면 💡 힌트 1단계부터.", MessageType.Warning);
+
+            foreach (var q in reqs)
+            {
+                var fails = _results.Where(r => r.req == q && !r.pass).ToList();
+                if (fails.Count == 0) continue;
+                var f = fails[0];
+                string text = "✘ " + q +
+                              "\n   실패한 입력: " + f.label + "   기대 " + f.expected + " · 실제 " + f.actual +
+                              (f.why != null ? "\n   원인: " + f.why : "") +
+                              "\n   수정 방향: " + f.fix;
+                EditorGUILayout.HelpBox(text, MessageType.Warning);
+            }
+            if (okReq < reqs.Count)
+                GUILayout.Label("(경계)가 붙은 입력은 흔한 실수가 드러나는 입력이다. 정상 입력만 맞았다면 조건 하나를 빠뜨렸을 수 있다.", EditorStyles.wordWrappedMiniLabel);
+
+            if (_showCases = EditorGUILayout.Foldout(_showCases, "케이스 전부 보기", true))
                 foreach (var r in _results)
                 {
                     GUI.color = r.pass ? Color.white : new Color(1f, 0.6f, 0.6f);
                     GUILayout.Label((r.pass ? "✔ " : "✘ ") + r.label + "     기대 " + r.expected + "  ·  실제 " + r.actual, EditorStyles.wordWrappedLabel);
                 }
-                GUI.color = Color.white;
-                if (ok < _results.Count) EditorGUILayout.HelpBox("(경계)가 붙은 케이스는 실수가 드러나는 입력입니다. 정상 입력만 맞았다면 조건 하나를 빠뜨렸을 수 있습니다.", MessageType.None);
-                if (_blankOpen) EditorGUILayout.HelpBox("파일에 아직 // TODO 가 남아 있습니다. 답을 쓴 뒤 TODO 줄과 임시값 줄을 지우세요.", MessageType.Warning);
-            }
+            GUI.color = Color.white;
+        }
 
-            if (_showSkeleton = EditorGUILayout.Foldout(_showSkeleton, "🦴 뼈대 보기 (___ 를 채운다)", true))
-                EditorGUILayout.TextArea(step.skeleton, EditorStyles.textArea);
-
-            if (GUILayout.Button("막혔을 때: 정답 되돌리기 (빈칸 대신 정답을 다시 넣는다)", EditorStyles.miniButton))
+        // 힌트 1~5단계. [다음 힌트]로 하나씩 연다. 4·5단계는 코드를 보여 주고 파일에 넣을 수도 있다.
+        void DrawHints(Step step, bool made)
+        {
+            int level = EditorPrefs.GetInt(Key + BlankKey(step, "hint"), 0);
+            GUILayout.Space(6);
+            GUILayout.Label("💡 힌트  " + level + " / 5", EditorStyles.boldLabel);
+            for (int i = 0; i < level; i++)
             {
-                BlankTool.Restore(step.blank);
-                _blankOpen = false;
+                GUILayout.Label((i + 1) + "단계 · " + HintNames[i], EditorStyles.miniBoldLabel);
+                if (i < 3) EditorGUILayout.HelpBox(step.hints[i], MessageType.None);
+                else if (i == 3) HintCode(step, step.skeleton, "이 코드로 바꾸기",
+                    "지금 작성한 코드가 빈칸(___)이 든 기본 코드로 바뀝니다. ___ 를 모두 채워야 컴파일됩니다.", () => BlankTool.Put(step.blank, step.skeleton));
+                else
+                {
+                    HintCode(step, _answer ?? (_answer = BlankTool.Answer(step.blank)), "정답을 파일에 넣기",
+                        "지금 작성한 코드가 완성 코드로 바뀝니다. 넣은 뒤에도 [▶ 테스트 실행]으로 확인합니다.", () => BlankTool.Restore(step.blank));
+                    EditorGUILayout.HelpBox("해설 — " + step.explain, MessageType.None);
+                }
+            }
+            if (level < 5 && GUILayout.Button("다음 힌트 ▶  " + (level + 1) + "단계 · " + HintNames[level]))
+                EditorPrefs.SetInt(Key + BlankKey(step, "hint"), level + 1);
+        }
+
+        void HintCode(Step step, string code, string button, string warning, System.Action put)
+        {
+            EditorGUILayout.TextArea(code, EditorStyles.textArea);
+            if (GUILayout.Button(button, EditorStyles.miniButton) && EditorUtility.DisplayDialog(button, warning, "바꾸기", "취소"))
+            {
+                put();
+                SetFlag(BlankKey(step, "made"), true);
+                _edited = true;
                 _results = null;
+                GUIUtility.ExitGUI();
             }
         }
 
-        /// <summary>📍 어디서 하는지 + [여기 보기]. 대상은 Hierarchy·Scene·Project 에 노랗게 표시된다.</summary>
+        // 📍 어디서 하는지 + [여기 보기]. 대상은 Hierarchy·Scene·Project 에 노랗게 표시된다.
         static void DrawWhere(Task task)
         {
             EditorGUILayout.BeginHorizontal();
@@ -304,14 +384,15 @@ namespace HumanoidEditor
         void OnStepChanged()
         {
             _results = null;
-            _showSkeleton = _showHint = _showHelp = false;
+            _answer = null;
+            _showHint = _showHelp = _showCases = false;
             _nextFileCheck = 0;
             _scroll = Vector2.zero;
         }
 
         // ── 강사용 자동 완성 ───────────────────────────────────────
         // 수업 준비 · 시연 · 확인용. 학생 화면에는 보이지 않는다 (메뉴로 켤 때만).
-        // 단계를 정답대로 만들고(solve · 빈칸 정답 되돌리기) 할 일을 전부 ✔ 로 표시한다.
+        // 단계를 정답대로 만들고(solve · 실습 정답 되돌리기) 할 일을 전부 ✔ 로 표시한다.
 
         const string TeacherMenu = "Humanoid/개발자/자동 완성 버튼 보이기 (강사용)";
         static bool Teacher => EditorPrefs.GetBool(Key + "teacher");
@@ -354,7 +435,7 @@ namespace HumanoidEditor
             if (step.solve != null && !EditorApplication.isPlaying) step.solve();
             if (step.blank != null)
             {
-                BlankTool.Restore(step.blank);      // 빈칸을 만들어 두었으면 정답을 되돌린다
+                BlankTool.Restore(step.blank);      // 구현 중이었으면 정답을 되돌린다
                 SetFlag(BlankKey(step, "made"), true);
                 SetFlag(BlankKey(step, "pass"), true);
             }
@@ -365,8 +446,15 @@ namespace HumanoidEditor
         {
             var step = TutorialChapters.All[_chapter].steps[s];
             for (int t = 0; t < step.tasks.Count; t++) SetFlag(TaskKey(_chapter, s, t), false);
-            if (step.blank != null) { SetFlag(BlankKey(step, "made"), false); SetFlag(BlankKey(step, "pass"), false); }
+            if (step.blank != null) ResetBlank(step);
             OnStepChanged();
+        }
+
+        static void ResetBlank(Step step)
+        {
+            SetFlag(BlankKey(step, "made"), false);
+            SetFlag(BlankKey(step, "pass"), false);
+            EditorPrefs.SetInt(Key + BlankKey(step, "hint"), 0);
         }
 
         // 개발자용: 모든 장·단계를 차례로 화면에 그려 본다. OnGUI 에서 예외가 나면 Console 에 남는다.
@@ -407,11 +495,11 @@ namespace HumanoidEditor
                 for (int s = 0; s < steps.Count; s++)
                 {
                     for (int t = 0; t < steps[s].tasks.Count; t++) SetFlag(TaskKey(c, s, t), false);
-                    if (steps[s].blank != null) { SetFlag(BlankKey(steps[s], "made"), false); SetFlag(BlankKey(steps[s], "pass"), false); }
+                    if (steps[s].blank != null) ResetBlank(steps[s]);
                 }
             }
             EditorPrefs.SetInt(Key + "chapter", 0);
-            Debug.Log("[Humanoid] 튜토리얼 진행을 초기화했습니다. (코드의 빈칸은 그대로입니다. 되돌리려면 Humanoid > 개발자 > 모든 정답 되돌리기)");
+            Debug.Log("[Humanoid] 튜토리얼 진행을 초기화했습니다. (작성한 코드는 그대로입니다. 정답으로 되돌리려면 Humanoid > 개발자 > 모든 정답 되돌리기)");
         }
     }
 }

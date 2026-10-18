@@ -3,13 +3,13 @@ using UnityEngine;
 
 namespace HumanoidEditor
 {
-    /// <summary>장별 메뉴가 함께 쓰는 것만 모아 둔다.</summary>
+    // 씬 구성 메뉴들이 함께 쓰는 것만 모아 둔다.
     internal static class HumanoidBuild
     {
         // RobotArms의 "TrainingArea"와 이름이 겹치지 않게 한다.
         public const string AreaName = "HumanoidArea";
 
-        /// <summary>학습 영역 안에서 이름으로 찾는다. 없으면 콘솔에 안내하고 null.</summary>
+        // 학습 영역 안에서 이름으로 찾는다. 없으면 콘솔에 안내하고 null.
         public static Transform Find(string name)
         {
             var area = GameObject.Find(AreaName);
@@ -27,7 +27,7 @@ namespace HumanoidEditor
             return c != null ? c : Undo.AddComponent<T>(go);
         }
 
-        /// <summary>색 이름으로 머티리얼 에셋을 만들어 재사용한다.</summary>
+        // 색 이름으로 머티리얼 에셋을 만들어 재사용한다.
         public static Material Mat(string name, Color color)
         {
             string path = "Assets/Humanoid/Materials/" + name + ".mat";
@@ -42,7 +42,7 @@ namespace HumanoidEditor
             return mat;
         }
 
-        /// <summary>보이는 모양만 만든다(콜라이더 없음). 충돌은 스케일 1인 부모의 콜라이더가 맡는다.</summary>
+        // 보이는 모양만 만든다(콜라이더 없음). 충돌은 스케일 1인 부모의 콜라이더가 맡는다.
         public static void Visual(PrimitiveType type, Transform parent, Vector3 localPos, Vector3 scale, Material mat)
         {
             var go = GameObject.CreatePrimitive(type);
