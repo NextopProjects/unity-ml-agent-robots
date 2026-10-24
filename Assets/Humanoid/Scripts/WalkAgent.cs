@@ -23,23 +23,26 @@ namespace Humanoid
 
         public override void OnEpisodeBegin()
         {
-            if (_speed.Count > 0)   // 지난 판 성적을 남긴다 (첫 판은 없다)
-            {
-                var stats = Academy.Instance.StatsRecorder;
-                stats.Add("Walk/Speed", _speed.Average);
-                stats.Add("Walk/SpeedError", _speed.Error(targetSpeed));
-                stats.Add("Walk/FallRate", _fell ? 1f : 0f);    // 판마다 0/1 → 평균이 곧 넘어짐 비율
-                stats.Add("Walk/Targets", _reached);
-            }
+            RecordStats();          // 지난 판 성적을 남긴다
             _speed.Clear();
             _reached = 0;
             _fell = false;
 
-            // yaml에 커리큘럼이 없으면 Inspector 값을 그대로 쓴다.
-            targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault("target_speed", targetSpeed);
-
+            ReadCurriculum();       // 이번 판의 목표 속도
             base.OnEpisodeBegin();
             MoveTarget();
+        }
+
+        // 지난 판 성적을 TensorBoard 에 남긴다 (Walk/…). 첫 판처럼 기록이 없으면 남기지 않는다.
+        void RecordStats()
+        {
+            // 여기에 직접 구현한다.
+        }
+
+        // 커리큘럼(yaml)의 target_speed 를 읽는다. 커리큘럼이 없으면 Inspector 값을 그대로 쓴다.
+        void ReadCurriculum()
+        {
+            // 여기에 직접 구현한다.
         }
 
         // 몸 주변 4~8m의 무작위 방향. 바닥(40×40) 밖으로 나가지 않게 ±15 안에 둔다.
@@ -68,40 +71,28 @@ namespace Humanoid
 
         public override void CollectObservations(VectorSensor sensor)
         {
-            base.CollectObservations(sensor);                                                   // 48
-            // 목표 방향을 "내가 보는 방향" 기준으로. 어느 쪽을 보든 같은 상황이면 같은 숫자가 나와야 한다.
-            Vector3 local = Quaternion.Inverse(HumanoidMath.HeadingRotation(body.pelvis.transform.forward)) * DirectionToTarget();
-            sensor.AddObservation(local.x);                                                     // 1
-            sensor.AddObservation(local.z);                                                     // 1
-            sensor.AddObservation(targetSpeed);                                                 // 1
+            // 주어진 코드에서 출발해 직접 완성한다.
+            base.CollectObservations(sensor);     // 서기의 관측 48개 (주어진 코드)
         } // = 51
 
         protected override float StepReward()
         {
+            // 주어진 코드에서 출발해 직접 완성한다.
             Vector3 dir = DirectionToTarget();
             Vector3 velocity = body.CenterOfMassVelocity;
 
-            // 목표 쪽으로 실제로 얼마나 빨리 가고 있나 → 판 평균
+            // TensorBoard 성적표에 쓸 기록 (주어진 코드)
             _speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));
             _fell |= body.HasFallen;
 
-            // 목표에 닿으면 +1 하고 새 자리로 옮긴다 (제한시간도 새로). 판은 끝내지 않는다 (계속 걷게)
-            Vector3 toTarget = target.position - body.pelvis.transform.position;
-            toTarget.y = 0f;
-            float bonus = 0f;
-            if (toTarget.magnitude < 0.6f) { bonus = 1f; _reached++; MoveTarget(); }
-
-            // 더하지 않고 곱한다. 엉뚱한 쪽을 보고 달리거나, 목표를 보고 서 있기만 하면 0점에 가깝다.
-            return bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed)
-                         * HumanoidMath.FacingReward(body.torso.transform.forward, dir);
+            // TODO: 목표에 닿았으면 보너스 1 · 도달 수 +1 · 새 목표.  그리고 속도 점수 × 방향 점수를 더해 돌려준다
+            return 0f;
         }
 
         public override void OnActionReceived(ActionBuffers actions)
         {
-            base.OnActionReceived(actions);     // 행동 · 보상 · 넘어지면 끝내기 (넘어져서 끝났으면 새 판이 이미 시작됐다)
-
-            // 제한시간 안에 목표에 못 닿으면 판을 끝낸다. 벌점은 없다 — 넘어짐과 같이, 앞으로 받을 보상이 사라지는 것이 벌이다.
-            if (StepCount > _deadline) EndEpisode();
+            // 주어진 코드에서 출발해 직접 완성한다.
+            base.OnActionReceived(actions);     // 서기의 행동 · 보상 · 넘어지면 끝내기 (주어진 코드)
         }
 
         protected override string Status() =>

@@ -12,7 +12,7 @@ namespace HumanoidEditor
     // 진행 상황은 EditorPrefs 에 저장되어 Play·컴파일·재시작 뒤에도 이어진다.
     internal class TutorialWindow : EditorWindow
     {
-        const string Key = "Humanoid.Tutorial.";
+        static string Key => TutorialChapters.PrefsPrefix;     // 프로젝트마다 따로
         const string DocFolder = "Assets/Humanoid/Docs/";
 
         int _chapter;
@@ -20,7 +20,6 @@ namespace HumanoidEditor
         bool _showHint, _showHelp, _showCases;
         List<BlankCheck.Result> _results;     // 마지막 테스트 결과 (화면 표시용)
         bool _edited, _untouched;              // 시작 코드를 고쳤는가 (파일을 계속 읽지 않도록 저장해 둔다)
-        string _answer;                        // 힌트 5단계에 보여 줄 정답 (한 번만 읽는다)
         double _nextFileCheck;
 
         [MenuItem("Humanoid/튜토리얼 열기 %#h", false, 0)]
@@ -38,7 +37,8 @@ namespace HumanoidEditor
         void OnEnable() => _chapter = EditorPrefs.GetInt(Key + "chapter", 0);
         void OnDisable() => TutorialGuide.Set(null);     // 창을 닫으면 하이라이트도 끈다
 
-        static readonly Task MathFile = new Task { window = "Project", path = BlankTool.MathPath, where = "Project ▸ Assets/Humanoid/Scripts/HumanoidMath.cs" };
+        // 코드 단계에서 고칠 스크립트 (Project 창에 노랗게 표시)
+        static Task CodeFile(Step step) => new Task { window = "Project", path = BlankTool.PathOf(step.blank), where = "Project ▸ " + BlankTool.PathOf(step.blank) };
 
         // ── 진행 상황 ───────────────────────────────────────────────
 
@@ -75,8 +75,8 @@ namespace HumanoidEditor
                     _edited = !BlankTool.Untouched(step.blank, step.start);
                     _nextFileCheck = EditorApplication.timeSinceStartup + 1.0;
                 }
-                // 코드를 작성할 차례면 Project 창에서 HumanoidMath.cs 를 표시한다
-                TutorialGuide.Set(Flag(BlankKey(step, "made")) && !Flag(BlankKey(step, "pass")) ? MathFile : null);
+                // 코드를 작성할 차례면 Project 창에서 그 스크립트를 표시한다
+                TutorialGuide.Set(Flag(BlankKey(step, "made")) && !Flag(BlankKey(step, "pass")) ? CodeFile(step) : null);
             }
             else
             {
@@ -243,11 +243,10 @@ namespace HumanoidEditor
                 SetFlag(BlankKey(step, "made"), true);
                 _edited = false;
                 _results = null;
-                _answer = null;
             });
-            BlankRow(made && _edited, made && !_edited, "② HumanoidMath.cs 를 열어 직접 작성하고 저장한다", "📄 파일 열기", () =>
-                AssetDatabase.OpenAsset(AssetDatabase.LoadAssetAtPath<MonoScript>(BlankTool.MathPath), BlankTool.Line(id)));
-            if (made && !pass) DrawWhere(MathFile);
+            BlankRow(made && _edited, made && !_edited, "② " + System.IO.Path.GetFileName(BlankTool.PathOf(id)) + " 를 열어 직접 작성하고 저장한다", "📄 파일 열기", () =>
+                AssetDatabase.OpenAsset(AssetDatabase.LoadAssetAtPath<MonoScript>(BlankTool.PathOf(id)), BlankTool.Line(id)));
+            if (made && !pass) DrawWhere(CodeFile(step));
 
             bool broken = EditorUtility.scriptCompilationFailed;
             GUI.enabled = made && !EditorApplication.isCompiling && !broken;
@@ -324,8 +323,8 @@ namespace HumanoidEditor
                     "지금 작성한 코드가 빈칸(___)이 든 기본 코드로 바뀝니다. ___ 를 모두 채워야 컴파일됩니다.", () => BlankTool.Put(step.blank, step.skeleton));
                 else
                 {
-                    HintCode(step, _answer ?? (_answer = BlankTool.Answer(step.blank)), "정답을 파일에 넣기",
-                        "지금 작성한 코드가 완성 코드로 바뀝니다. 넣은 뒤에도 [▶ 테스트 실행]으로 확인합니다.", () => BlankTool.Restore(step.blank));
+                    HintCode(step, step.answer, "정답을 파일에 넣기",
+                        "지금 작성한 코드가 완성 코드로 바뀝니다. 넣은 뒤에도 [▶ 테스트 실행]으로 확인합니다.", () => BlankTool.Restore(step));
                     EditorGUILayout.HelpBox("해설 — " + step.explain, MessageType.None);
                 }
             }
@@ -335,7 +334,10 @@ namespace HumanoidEditor
 
         void HintCode(Step step, string code, string button, string warning, System.Action put)
         {
-            EditorGUILayout.TextArea(code, EditorStyles.textArea);
+            // 읽기 전용 · 복사 가능. (고칠 수 있는 칸이면 학습자가 칸 안을 고쳐도 파일에는 안 들어가 헷갈린다)
+            var style = new GUIStyle(EditorStyles.textArea) { wordWrap = false };
+            float height = style.CalcHeight(new GUIContent(code), position.width) + 4f;
+            EditorGUILayout.SelectableLabel(code, style, GUILayout.Height(height));
             if (GUILayout.Button(button, EditorStyles.miniButton) && EditorUtility.DisplayDialog(button, warning, "바꾸기", "취소"))
             {
                 put();
@@ -384,7 +386,6 @@ namespace HumanoidEditor
         void OnStepChanged()
         {
             _results = null;
-            _answer = null;
             _showHint = _showHelp = _showCases = false;
             _nextFileCheck = 0;
             _scroll = Vector2.zero;
@@ -435,7 +436,7 @@ namespace HumanoidEditor
             if (step.solve != null && !EditorApplication.isPlaying) step.solve();
             if (step.blank != null)
             {
-                BlankTool.Restore(step.blank);      // 구현 중이었으면 정답을 되돌린다
+                BlankTool.Restore(step);            // 정답을 넣는다
                 SetFlag(BlankKey(step, "made"), true);
                 SetFlag(BlankKey(step, "pass"), true);
             }

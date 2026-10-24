@@ -73,9 +73,9 @@ namespace Humanoid
         // 발이 아닌 곳이 바닥에 닿았다 = 넘어졌다.
         public bool HasFallen
         {
+            // 주어진 코드에서 출발해 직접 완성한다.
             get
             {
-                foreach (var p in _parts) if (!p.isFoot && p.touchingGround) return true;
                 return false;
             }
         }
@@ -93,19 +93,16 @@ namespace Humanoid
         // 행동 18개(-1~1)를 관절 목표 각도로 바꿔 모터에 넣는다.
         public void SetActions(float[] actions)
         {
+            // 주어진 코드에서 출발해 직접 완성한다.
             float x = 0f, z = 0f;
             for (int i = 0; i < JointCount; i++)
             {
-                Vector2 r = Range(i);
-                float angle = HumanoidMath.ActionToAngle(actions[i], r.x, r.y);
-                if (_dofIsZ[i]) z = angle; else x = angle;
+                // TODO: i번 축의 목표 각도를 구해 X 축이면 x, Z 축이면 z 에 담는다
 
-                // 한 관절의 X·Z가 다 모이면 모터에 넣는다.
-                // targetRotation 은 Transform과 부호가 반대지만, 가동 범위도 같은 공간이라 그대로 넣으면 맞다.
+                // 한 관절의 X·Z가 다 모이면 그 관절에 넣는다
                 if (i == JointCount - 1 || _dofPart[i + 1] != _dofPart[i])
                 {
-                    _dofPart[i].joint.targetRotation = Quaternion.Euler(x, 0f, z);
-                    x = z = 0f;
+                    // TODO: 이 관절에 목표 각도를 넣고 x · z 를 0 으로
                 }
             }
         }

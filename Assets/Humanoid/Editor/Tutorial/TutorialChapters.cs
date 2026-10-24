@@ -21,13 +21,13 @@ namespace HumanoidEditor
 
     // 단계 하나 = 작은 변경 하나. 할 일(Task)을 위에서부터 차례로 해 나간다.
     // blank가 있으면 코드 실습 단계다: 구현 시작 → 직접 작성 → 테스트 가 할 일 대신 붙는다.
-    //   start    시작 코드. null 이면 "처음부터"(임시값 한 줄만). mode 는 창에 보이는 실습 형태
-    //   hints    힌트 1~3단계 (방향·개념 / 구조·순서 / 핵심 로직).  skeleton = 4단계(빈칸 코드), explain = 5단계 해설
+    //   start    시작 코드. null 이면 "처음부터"(임시값만). mode 는 창에 보이는 실습 형태
+    //   hints    힌트 1~3단계 (방향·개념 / 구조·순서 / 핵심 로직).  skeleton = 4단계(빈칸 코드), explain · answer = 5단계
     // solve는 막혔을 때 [대신 해주기]가 하는 일이다.
     internal class Step
     {
         public string title, goal, concept, hint, blank, skeleton, done;
-        public string start, mode, explain;
+        public string start, mode, explain, answer;
         public string[] hints;
         public Action solve;
         public List<Task> tasks = new List<Task>();
@@ -69,6 +69,11 @@ namespace HumanoidEditor
     // 자세한 설명은 문서(Docs/NN)에 있고 창의 [📖 문서]로 연다.
     internal static class TutorialChapters
     {
+        // 진행 상태(EditorPrefs) 키 앞머리. EditorPrefs 는 PC 전체에 하나라 프로젝트마다 따로 둔다 —
+        // 패키지를 다른 프로젝트에 넣었을 때 이 프로젝트의 진행 상태가 따라가지 않게.
+        public static string PrefsPrefix => _prefix ?? (_prefix = "Humanoid.Tutorial." + PlayerSettings.productGUID.ToString("N").Substring(0, 8) + ".");
+        static string _prefix;     // 처음 쓸 때 계산한다 (창이 만들어지는 중에는 productGUID 를 읽을 수 없다)
+
         const string PracticeScene = "Assets/Humanoid/Scenes/Humanoid.unity";     // 빈 실습 씬. 정답은 Humanoid_Answer.unity
 
         // 계층 경로. 조건은 이 이름·위치를 정확히 본다.
@@ -161,8 +166,10 @@ namespace HumanoidEditor
                     {
                         if (st.hints == null || st.hints.Length != 3 || string.IsNullOrEmpty(st.skeleton) || string.IsNullOrEmpty(st.explain)) problems.Add(where + ": 힌트 1~5단계가 다 있지 않음");
                         if (!st.skeleton.Contains("___")) problems.Add(where + ": 힌트 4단계 코드에 빈칸(___)이 없음");
-                        if (BlankCheck.Grade(st.blank).Count < 3) problems.Add(where + ": 테스트 케이스 3개 미만");
-                        if (BlankTool.Line(st.blank) <= 1) problems.Add(where + ": HumanoidMath.cs 에서 실습 자리를 찾지 못함");
+                        if (BlankCheck.CaseCount(st.blank) < 3) problems.Add(where + ": 테스트 케이스 3개 미만");
+                        if (BlankTool.Line(st.blank) <= 1) problems.Add(where + ": 스크립트에서 실습 자리를 찾지 못함");
+                        if (string.IsNullOrEmpty(st.answer)) problems.Add(where + ": 정답(answer) 없음");
+                        else if (!BlankTool.Started(st.blank) && !BlankTool.Same(BlankTool.Body(st.blank), st.answer)) problems.Add(where + ": 정답(answer)이 스크립트의 코드와 다름");
                     }
                     else if (st.tasks.Count == 0) problems.Add(where + ": 할 일 없음");
                     foreach (var t in st.tasks)
@@ -227,7 +234,7 @@ namespace HumanoidEditor
                           "막히면 💡 힌트 → 그래도 안 되면 '막혔을 때' 를 펼쳐 [대신 해주기]. 진행은 자동 저장된다.\n\n" +
                           "실습은 Assets/Humanoid/Scenes/Humanoid.unity 에서 한다. 카메라와 조명만 있는 빈 씬에서 처음부터 직접 만든다.\n" +
                           "막히면 완성된 정답 씬 Scenes/Humanoid_Answer.unity 를 열어 비교해 본다.\n\n" +
-                          "버튼을 누르면 Scripts/HumanoidMath.cs 의 함수들도 시작 코드로 바뀐다. 각 장의 코드 실습에서 하나씩 직접 구현한다.",
+                          "버튼을 누르면 Scripts/ 의 몸 · 에이전트 코드 중 실습할 자리들도 시작 코드로 바뀐다. 각 장의 코드 실습에서 하나씩 직접 구현한다.",
                 done = "빈 씬이 준비됐다. 학습할 무대부터 만든다." };
             ch.steps.Add(s.Do("실습 씬(Scenes/Humanoid.unity)을 연다", () => EditorSceneManager.GetActiveScene().path == PracticeScene, "실습 씬 열기", OpenPractice));
 
@@ -371,31 +378,51 @@ namespace HumanoidEditor
                 concept = "아직 관절에 힘이 없다. 실 끊긴 인형처럼 무너지는 것이 정상이다. (실측: 1.3초 만에 바닥)\n" +
                           "날아가거나 부품이 떨어져 나가지 않고, 무릎이 앞으로 꺾이지 않으면 몸이 제대로 만들어진 것이다.\n" +
                           "이상하게 움직이면 관절의 Anchor · Limit 를 다시 본다.",
-                done = "몸이 물리로 움직인다. 이 몸의 '무게중심'을 계산해 보자." };
+                done = "몸이 물리로 움직인다. 이제 넘어진 몸을 되돌리고, 넘어졌는지 알아내는 코드를 쓴다." };
             PlayStep(s).Do("몸이 무너지는 모습을 본다").Game("관찰");
             ch.steps.Add(StopStep(s));
 
-            ch.steps.Add(new Step { title = "실습 1-1  무게중심", blank = "1-1",
-                goal = "부품 위치와 질량으로 몸 전체의 무게중심을 구하는 함수를 직접 만든다",
-                concept = "CenterOfMass(positions, masses) — 부품 위치 배열과 질량 배열을 받아 무게중심(Vector3)을 돌려준다.\n" +
-                          "  예) (0,2,0)에 3kg, (0,0,0)에 1kg → (0, 1.5, 0)\n" +
-                          "  부품이 하나도 없으면 (0,0,0)\n" +
+            ch.steps.Add(new Step { title = "실습 1-1  처음 자세로 되돌리기", blank = "1-1",
+                goal = "넘어진 부품을 처음 자리 · 방향으로 되돌리고 움직임을 멈추는 ResetPose 를 만든다",
+                concept = "BodyPart.ResetPose() — 부품 하나를 처음 모습으로 되돌린다. 판이 새로 시작될 때 · R 키를 누를 때 부품마다 불린다.\n" +
+                          "쓸 수 있는 것 (BodyPart 안):\n" +
+                          "  _startPosition · _startRotation   Init() 이 Play 시작 때 기억해 둔 처음 자리 · 방향 (부모 기준 = local)\n" +
+                          "  rb                                 이 부품의 Rigidbody\n" +
+                          "  touchingGround                     바닥에 닿아 있다는 기록\n" +
                           "\n" +
-                          "테스트를 통과한 뒤 Play 하면 Scene 뷰에 노란 점(무게중심)이 보인다. 넘어질 때 이 점이 발 밖으로 나간다.\n" +
-                          "4장에서는 같은 함수에 위치 대신 속도를 넣어 '몸 전체의 속도'를 잰다.",
+                          "강화학습은 같은 상황을 수천 번 되풀이하며 배운다. \"처음 상태로 똑같이 되돌리기\"가 환경의 기본이다.",
                 hints = new[] {
-                    "무게중심은 '질량으로 가중한 평균'이다. 무거운 부품일수록 결과가 그쪽으로 끌려간다.\n위치를 그냥 평균 내면 3kg 과 1kg 을 똑같이 친다.",
-                    "① 위치×질량을 모을 Vector3 합계, 질량을 모을 float 합계를 만든다\n② for 문으로 모든 부품을 돈다\n③ 반복이 끝나면 합계 ÷ 질량 합계를 돌려준다\n④ 질량 합계가 0이면 나누지 않고 Vector3.zero",
-                    "COM = (m1·p1 + m2·p2 + …) / (m1 + m2 + …)\n반복 안:  sum += positions[i] * masses[i];   totalMass += masses[i];\n마지막:   totalMass > 0 일 때만 sum / totalMass" },
-                skeleton = "Vector3 sum = Vector3.zero;\nfloat totalMass = 0f;\nfor (int i = 0; i < positions.Length; i++)\n{\n    sum += ___;\n    totalMass += ___;\n}\nreturn ___;",
-                explain = "질량 가중 평균을 반복 한 번으로 구한다. Vector3 × float 은 x·y·z 각각에 곱한다.\n마지막 줄의 조건(삼항 연산자 ? :)은 부품이 없을 때 0으로 나눠 NaN 이 되는 것을 막는다.\nNaN 이 관측에 섞이면 학습 전체가 망가진다.",
+                    "되돌릴 것은 네 가지다: 자리 · 방향 · 움직임(속도) · 바닥에 닿았다는 기록.\n자리만 옮기고 속도를 그대로 두면, 넘어지던 기세 그대로 다시 넘어진다.",
+                    "① transform 의 local 위치를 처음 자리로\n② local 회전을 처음 방향으로\n③ Rigidbody 의 직선 속도 · 회전 속도를 0 으로\n④ touchingGround 를 false 로",
+                    "transform.localPosition = _startPosition;   transform.localRotation = _startRotation;\nrb.linearVelocity 와 rb.angularVelocity 에 Vector3.zero 를 넣는다.\n부모 기준(local)으로 되돌리는 이유: 부품은 계층으로 이어져 있어, 부모부터 차례로 되돌리면 자식도 제자리에 온다." },
+                skeleton = "transform.localPosition = ___;\ntransform.localRotation = ___;\nrb.linearVelocity = ___;\nrb.angularVelocity = ___;\ntouchingGround = ___;",
+                explain = "localPosition · localRotation 은 부모 기준이다. HumanoidBody.ResetBody() 가 부모 → 자식 순서로 부르므로 몸 전체가 처음 자세로 돌아온다.\n속도를 0 으로 만들지 않으면 Rigidbody 는 위치만 바뀐 채 이전 속도로 계속 움직인다.",
+                answer = "transform.localPosition = _startPosition;\ntransform.localRotation = _startRotation;\nrb.linearVelocity = Vector3.zero;      // 속도를 안 지우면 넘어지던 기세 그대로 다시 넘어진다\nrb.angularVelocity = Vector3.zero;\ntouchingGround = false;" });
+
+            ch.steps.Add(new Step { title = "실습 1-2  넘어졌는가", blank = "1-2",
+                start = "get\n{\n    return false;\n}",
+                goal = "발이 아닌 부품이 바닥에 닿으면 \"넘어졌다\"고 알려 주는 HasFallen 을 만든다",
+                concept = "HumanoidBody.HasFallen — 속성(property). 몸이 넘어졌으면 true.\n" +
+                          "쓸 수 있는 것 (HumanoidBody 안):\n" +
+                          "  _parts                 몸의 부품 전부 (BodyPart 배열)\n" +
+                          "  부품.isFoot            발인가 — 발은 바닥에 닿아도 넘어진 게 아니다\n" +
+                          "  부품.touchingGround    바닥에 닿아 있는가 (BodyPart 가 충돌로 기록해 둔다)\n" +
+                          "\n" +
+                          "3장부터 AI의 판(에피소드)을 끝내는 조건이 된다. RollerBall 에서 공이 바닥 밖으로 떨어지면 끝났던 것과 같다.",
+                hints = new[] {
+                    "\"발이 아닌데 바닥에 닿은 부품이 하나라도 있으면\" 넘어진 것이다.\n하나라도 찾으면 바로 true, 끝까지 없으면 false.",
+                    "① 모든 부품을 하나씩 본다 (foreach)\n② 발이 아니고(!isFoot) 바닥에 닿아 있으면 → return true\n③ 반복이 끝나면 → return false",
+                    "get 안에:  foreach (var p in _parts) if (!p.isFoot && p.touchingGround) return true;\n그 다음 줄에  return false;" },
+                skeleton = "get\n{\n    foreach (var p in _parts) if (___ && ___) return true;\n    return ___;\n}",
+                explain = "속성(get)은 메서드처럼 계산해서 값을 돌려준다. 바깥에서는 body.HasFallen 처럼 변수인 것처럼 읽는다.\n\"하나라도 있으면 true\" 는 찾자마자 return 하는 반복이 가장 간단하다.",
+                answer = "get\n{\n    foreach (var p in _parts) if (!p.isFoot && p.touchingGround) return true;\n    return false;\n}",
                 done = "1장 끝 — 학습 환경이 준비됐다. 다음은 이 몸을 움직인다." });
 
             // ═══════════════════════════════════════════════════════════
             // 기초 움직임
             // ═══════════════════════════════════════════════════════════
             ch = new Chapter { title = "2. 기초 움직임", doc = "02-기초-움직임.md",
-                goals = new[] { "관절 모터(PD)가 목표 각도로 당기는 힘이라는 것을 안다", "행동(-1~1) ↔ 관절 각도를 변환한다", "모터만으로는 밀면 넘어진다는 것을 확인한다" } };
+                goals = new[] { "관절 모터(PD)가 목표 각도로 당기는 힘이라는 것을 안다", "행동 18개를 관절 모터로 보내는 코드를 쓴다", "모터만으로는 밀면 넘어진다는 것을 확인한다" } };
             list.Add(ch);
 
             s = new Step { title = "모터 켜기", goal = "관절에 목표 각도로 당기는 힘을 준다",
@@ -407,22 +434,42 @@ namespace HumanoidEditor
             s.Do("Humanoid 의 Humanoid Body 에서 Spring 4000", () => Body != null && Near(Body.spring, 4000f)).Insp(Root, typeof(HumanoidBody), "Spring");
             ch.steps.Add(s.Do("Damper 400", () => Body != null && Near(Body.damper, 400f)).Insp(Root, typeof(HumanoidBody), "Damper"));
 
-            ch.steps.Add(new Step { title = "실습 2-1  행동 → 각도", blank = "2-1",
-                goal = "행동(-1~1)을 관절 목표 각도로 바꾸는 함수를 직접 만든다",
-                concept = "ActionToAngle(action, low, high) — 행동을 목표 각도(도)로. 0은 언제나 0도(차렷).\n" +
-                          "  -1 → low,   0 → 0,   +1 → high      (low 는 음수)\n" +
-                          "  예) 엉덩이(-30~90): +1 → 90,  -0.5 → -15\n" +
-                          "  범위 밖 행동(예: 3)이 와도 low~high 를 넘지 않아야 한다\n" +
+            ch.steps.Add(new Step { title = "실습 2-1  관절 모터에 목표 넣기", blank = "2-1",
+                goal = "목표 각도를 관절 모터(Configurable Joint)에 넣는 SetTarget 을 만든다",
+                concept = "BodyPart.SetTarget(x, z) — 관절이 x(앞뒤) · z(좌우) 도로 가도록 모터의 목표를 정한다.\n" +
+                          "쓸 수 있는 것: joint (이 부품의 ConfigurableJoint)\n" +
                           "\n" +
-                          "이 함수가 키보드와 AI의 숫자를 관절로 보낸다. 범위 가운데를 0으로 두면 무릎(-120~0)이 -60도,\n" +
-                          "즉 반쯤 주저앉은 자세로 학습이 시작된다.",
+                          "Configurable Joint 의 모터는 targetRotation(목표 회전)으로 당긴다. 관절에 Y(비틀기)는 잠가 두었으니 0.\n" +
+                          "★ Unity 함정: targetRotation 에 +30 을 넣으면 실제로는 -30 으로 돈다. 다행히 가동 범위도 같은 공간이라,\n" +
+                          "   범위 안의 값을 그대로 넣으면 맞게 돈다. 부호를 바꾸지 말고 그대로 넣는다.",
                 hints = new[] {
-                    "양쪽을 따로 늘린다. 0~+1 은 0~high 로, -1~0 은 low~0 으로.\n범위 전체를 직선 하나로 늘리면 0이 0도가 되지 않는다.",
-                    "① 행동을 -1~1 로 자른다\n② 양수인지 음수인지에 따라 다른 한계를 곱한다",
-                    "자르기:  Mathf.Clamp(action, -1f, 1f)\n양수:   action * high\n음수:   -action * low      (예: -0.5 → 0.5 × (-30) = -15)" },
-                skeleton = "action = Mathf.Clamp(___, -1f, 1f);\nreturn action >= 0f ? ___ : ___;",
-                explain = "Clamp 로 범위 밖 행동을 막고, 삼항 연산자로 두 구간을 나눈다.\n무릎처럼 high 가 0이면 + 쪽 행동은 모두 0도가 된다 (경계 케이스).",
-                done = "이제 키보드로 이 함수를 써 본다." });
+                    "각도(도) 세 개를 회전 하나로 만들어 targetRotation 에 넣으면 된다. 한 줄이다.",
+                    "① x · 0 · z 를 회전(Quaternion)으로 만든다\n② joint.targetRotation 에 넣는다",
+                    "도 단위 각도 → 회전:  Quaternion.Euler(x, 0f, z)" },
+                skeleton = "joint.targetRotation = Quaternion.Euler(___, ___, ___);",
+                explain = "Quaternion.Euler(x, y, z) 는 각도(도)로 회전을 만든다. AI가 정하는 것은 이 \"목표\"뿐이고, 힘은 모터의 spring · damper 가 낸다 (PD 제어).",
+                answer = "joint.targetRotation = Quaternion.Euler(x, 0f, z);" });
+
+            ch.steps.Add(new Step { title = "실습 2-2  행동 18개를 관절로", blank = "2-2",
+                start = "float x = 0f, z = 0f;\nfor (int i = 0; i < JointCount; i++)\n{\n    // TODO: i번 축의 목표 각도를 구해 X 축이면 x, Z 축이면 z 에 담는다\n\n    // 한 관절의 X·Z가 다 모이면 그 관절에 넣는다\n    if (i == JointCount - 1 || _dofPart[i + 1] != _dofPart[i])\n    {\n        // TODO: 이 관절에 목표 각도를 넣고 x · z 를 0 으로\n    }\n}",  mode = "일부 코드 제공",
+                goal = "행동 18개(-1~1)를 관절마다 목표 각도로 바꿔 넣는 SetActions 를 완성한다",
+                concept = "HumanoidBody.SetActions(actions) — 키보드든 AI든 몸을 움직이는 유일한 입구. 행동 i번 = 관절 축 i번.\n" +
+                          "쓸 수 있는 것 (HumanoidBody 안):\n" +
+                          "  _dofPart[i]   i번 축이 속한 부품 (BodyPart)          _dofIsZ[i]   i번 축이 Z(좌우)인가\n" +
+                          "  Range(i)      i번 축의 가동 범위 (x = low, y = high)\n" +
+                          "  HumanoidMath.ActionToAngle(행동, low, high)   행동 -1~1 → 각도.  -1 → low, 0 → 0도(차렷), +1 → high  (주어진 함수)\n" +
+                          "  부품.SetTarget(x, z)   실습 2-1\n" +
+                          "\n" +
+                          "한 관절에 축이 둘(X·Z)인 경우가 있다. 두 축 값을 모았다가 한 번에 SetTarget 해야 한쪽이 지워지지 않는다.\n" +
+                          "반복과 \"관절이 바뀌는 곳\" 판정은 주어져 있다.",
+                hints = new[] {
+                    "축마다 각도를 구해 x 나 z 에 모아 두고, 관절이 끝나는 곳에서 그 관절에 넣는다.\n넣은 뒤에는 x · z 를 0 으로 — 다음 관절(무릎처럼 축이 하나뿐인)에 앞 관절 값이 남지 않게.",
+                    "① Range(i) 로 가동 범위를 얻는다\n② ActionToAngle 로 행동 → 각도\n③ _dofIsZ[i] 이면 z, 아니면 x 에 담는다\n④ (주어진 if 안) _dofPart[i].SetTarget(x, z) 후 x = z = 0f",
+                    "Vector2 r = Range(i);\nfloat angle = HumanoidMath.ActionToAngle(actions[i], r.x, r.y);\nif (_dofIsZ[i]) z = angle; else x = angle;\nif 안:  _dofPart[i].SetTarget(x, z);  x = z = 0f;" },
+                skeleton = "float x = 0f, z = 0f;\nfor (int i = 0; i < JointCount; i++)\n{\n    Vector2 r = Range(i);\n    float angle = HumanoidMath.ActionToAngle(___, r.x, r.y);\n    if (_dofIsZ[i]) ___ = angle; else ___ = angle;\n\n    if (i == JointCount - 1 || _dofPart[i + 1] != _dofPart[i])\n    {\n        _dofPart[i].SetTarget(___, ___);\n        x = z = 0f;\n    }\n}",
+                explain = "행동 순서 = Hierarchy 위 → 아래 순서의 관절 축. 같은 관절의 X · Z 는 붙어 있으므로 \"다음 축의 부품이 다르면 관절 끝\"이다.\n이 함수 하나가 키보드(2장)와 AI(3장~)의 숫자를 모두 몸으로 보낸다.",
+                answer = "float x = 0f, z = 0f;\nfor (int i = 0; i < JointCount; i++)\n{\n    Vector2 r = Range(i);\n    float angle = HumanoidMath.ActionToAngle(actions[i], r.x, r.y);\n    if (_dofIsZ[i]) z = angle; else x = angle;\n\n    // 한 관절의 X·Z가 다 모이면 그 관절에 넣는다.\n    if (i == JointCount - 1 || _dofPart[i + 1] != _dofPart[i])\n    {\n        _dofPart[i].SetTarget(x, z);\n        x = z = 0f;\n    }\n}",
+                done = "이제 키보드로 몸을 움직여 본다." });
 
             s = new Step { title = "키보드 조작 붙이기", goal = "키보드로 관절 18축을 움직이고 화면에 각도를 띄운다",
                 concept = "키보드가 만드는 것도 AI와 같은 '행동 18개(-1~1)'다. 3장부터는 AI가 이 자리에 들어온다.\n" +
@@ -442,23 +489,6 @@ namespace HumanoidEditor
             s.Do("←→ 로 관절을 고르고 ↑↓ 로 끝까지 돌린다. 목표와 실제가 같이 움직인다", () => Playing && Has<KeyboardControl>(Root) && Get<KeyboardControl>(Root).actions != null && Array.Exists(Get<KeyboardControl>(Root).actions, a => Mathf.Abs(a) > 0.95f)).Game("← → 로 고르기, ↑ ↓ 로 돌리기");
             ch.steps.Add(s.Do("H 로 내리고 2 를 눌러 무릎을 굽힌다 — 넘어지지 않는다", () => Playing && Body != null && Body.pelvis.rb != null && !Body.pelvis.rb.isKinematic && Body.Angle(10) < -30f && !Body.HasFallen).Game("H, 2"));
 
-            ch.steps.Add(new Step { title = "실습 2-2  각도 → -1~1", blank = "2-2",
-                start = "return angle >= 0f ? angle / high : angle / -low;",  mode = "기능 추가",
-                goal = "나눗셈만 하는 함수에 경계 처리 두 가지를 덧붙인다",
-                concept = "AngleToAction(angle, low, high) — 각도를 -1~1 로 되돌린다 (2-1 의 거꾸로). 3장에서 AI에게 '지금 자세'를 보여줄 때 쓴다.\n" +
-                          "각도를 그대로 넣으면 무릎(-120)과 발목(±35)의 크기가 달라 큰 숫자가 학습을 지배한다.\n" +
-                          "\n" +
-                          "시작 코드는 나눗셈만 한다. 두 기능을 덧붙인다:\n" +
-                          "  ① 결과를 -1~1 로 자른다 — 관절은 한계를 살짝 넘기도 한다\n" +
-                          "  ② 나눌 범위가 0이면 0을 돌려준다 — 무릎의 high 는 0. 0으로 나누면 무한대·NaN 이 된다\n" +
-                          "고치기 전에 [▶ 테스트 실행]으로 어느 요구사항이 깨지는지 먼저 본다.",
-                hints = new[] {
-                    "있는 식은 맞다. 이상한 입력(한계를 넘은 각도, 범위 0)에서 깨지는 것만 막으면 된다.\n고치기 전에 테스트를 돌려 실패한 요구사항을 확인한다.",
-                    "① 나눌 값(range)을 변수로 먼저 뺀다\n② range 가 0 이하면 바로 0 을 돌려준다\n③ 나눈 결과를 Clamp 로 자른다",
-                    "float range = angle >= 0f ? high : -low;\nif (range <= 0f) return 0f;\nreturn Mathf.Clamp(angle / range, -1f, 1f);" },
-                skeleton = "float range = angle >= 0f ? ___ : ___;\nif (range <= 0f) return 0f;\nreturn Mathf.Clamp(___, -1f, 1f);",
-                explain = "range 를 변수로 빼면 '0인지 검사'와 '나누기'에 같은 값을 쓸 수 있다. 검사는 반드시 나누기보다 먼저 온다.\n기존 기능은 그대로 두고 경계만 덧붙이는 것 — 실제 코드를 고칠 때 가장 흔한 작업이다." });
-
             s = new Step { title = "밀어서 넘어뜨리기", goal = "관절이 단단한 것과 균형을 잡는 것이 다르다는 것을 본다",
                 concept = "모터는 '관절 각도'를 지킬 뿐 '몸 전체가 쓰러지는지'는 모른다. (실측: 몸통을 미는 세기)\n" +
                           "  10 N·s  앞 버팀 · 옆 버팀 · 뒤 넘어짐 (뒤꿈치가 짧다)\n" +
@@ -474,21 +504,8 @@ namespace HumanoidEditor
             // 서기 학습
             // ═══════════════════════════════════════════════════════════
             ch = new Chapter { title = "3. 서기 학습", doc = "03-서기-학습.md",
-                goals = new[] { "에이전트 · 두뇌(Behavior Parameters) · 판단 주기를 직접 붙인다", "기울기를 관측하고, 서 있기를 보상으로 표현한다", "밀려도 버티는 정책을 학습한다" } };
+                goals = new[] { "에이전트 · 두뇌(Behavior Parameters) · 판단 주기를 직접 붙인다", "에이전트의 함수(판 시작 · 관측 · 행동과 보상 · 판 끝)를 직접 쓴다", "밀려도 버티는 정책을 학습한다" } };
             list.Add(ch);
-
-            ch.steps.Add(new Step { title = "실습 3-1  몸이 느끼는 아래쪽", blank = "3-1",
-                goal = "세상의 아래 (0,-1,0)을 몸 기준 좌표로 바꾸는 함수를 직접 만든다",
-                concept = "DownInBody(bodyRotation) — 세상의 아래 (0,-1,0)을 몸 기준 좌표로 바꿔 돌려준다. AI의 평형감각이다.\n" +
-                          "  똑바로 → (0,-1,0)    앞으로 숙임 → 아래가 몸의 앞쪽(+z)    거꾸로 → (0,1,0)\n" +
-                          "\n" +
-                          "몸 기준으로 주면 어느 쪽을 보고 서 있든 같은 자세엔 같은 숫자가 나온다.",
-                hints = new[] {
-                    "회전(Quaternion) × 벡터 는 '몸 기준 → 세상 기준'으로 돌린다. 지금 필요한 것은 그 반대 방향이다.",
-                    "① 몸 회전의 역회전을 구한다\n② 역회전 × 세상의 아래 벡터를 돌려준다 — 한 줄이면 된다",
-                    "역회전:      Quaternion.Inverse(bodyRotation)\n세상의 아래:  Vector3.down" },
-                skeleton = "return ___ * Vector3.down;",
-                explain = "Inverse(회전) * 벡터 = 세상 벡터를 몸 좌표로. 그냥 bodyRotation * Vector3.down 으로 쓰면\n숙였을 때 z 부호가 반대로 나온다 (케이스 '앞으로 60도 숙임')." });
 
             s = new Step { title = "에이전트 붙이기", goal = "몸에 '두뇌가 붙을 자리' Stand Agent 를 단다",
                 concept = "Stand Agent 의 네 함수 (RollerBall · RobotArms 와 같다)\n" +
@@ -527,20 +544,59 @@ namespace HumanoidEditor
                 solve = () => Set<KeyboardControl>(Root, k => k.driveBody = false) };
             ch.steps.Add(s.Do("Keyboard Control 의 Drive Body 체크를 끈다", () => Has<KeyboardControl>(Root) && !Get<KeyboardControl>(Root).driveBody).Insp(Root, typeof(KeyboardControl), "Drive Body"));
 
-            ch.steps.Add(new Step { title = "실습 3-2  서기 보상", blank = "3-2",
-                goal = "서 있는 정도를 0~1 점수로 주는 보상 함수를 직접 만든다",
-                concept = "StandReward(up, height, standHeight) — 서 있는 정도를 0~1 로.\n" +
-                          "  up 은 몸통의 위쪽 방향(길이 1), height 는 골반 높이, standHeight 는 서 있을 때 높이(0.96)\n" +
-                          "  똑바르고 제 높이 → 1   쪼그려 절반 높이 → 0.5   누움 → 0   거꾸로 → 0   더 높이 떠도 1을 넘지 않음\n" +
+            ch.steps.Add(new Step { title = "실습 3-1  판 시작 — OnEpisodeBegin", blank = "3-1",
+                goal = "새 판(에피소드)이 시작될 때 몸과 행동을 처음 상태로 되돌린다",
+                concept = "StandAgent.OnEpisodeBegin() — ML-Agents 가 판을 새로 열 때마다 부른다 (처음 한 번 + EndEpisode 뒤마다).\n" +
+                          "쓸 수 있는 것: body (HumanoidBody)  ·  body.ResetBody() = 부품 전부 ResetPose(실습 1-1) + 목표 각도 차렷\n" +
+                          "               _keyboard (KeyboardControl, 없을 수도 있다)  ·  _keyboard.ResetActions() = 키보드 행동을 0 으로\n" +
                           "\n" +
-                          "넘어지면 판을 끝낸다. 벌점은 없다 — 앞으로 받을 점수가 사라지는 것이 벌이다.\n" +
-                          "할인율 γ=0.99 면 매 스텝 1점의 합은 1/(1-γ) = 100. 넘어지면 이 100점이 사라진다.",
+                          "RollerBall 의 OnEpisodeBegin 은 공 위치를 되돌리고 목표를 옮겼다. 여기서는 몸 전체를 되돌린다.\n" +
+                          "★ 몸만 되돌리고 키보드 행동을 두면, Heuristic 일 때 이전 자세로 다시 당겨져 1.2초 만에 또 넘어진다(실측).",
                 hints = new[] {
-                    "두 가지를 본다: '얼마나 똑바른가'와 '얼마나 높은가'. 둘 다 0~1 로 만든 뒤 합친다.\n더하면 '누운 채 높이'도 절반 점수를 받는다.",
-                    "① 똑바른 정도 = up 의 y 성분 (위를 보면 1, 누우면 0, 거꾸로면 음수)\n② 높이 비율 = height / standHeight\n③ 둘 다 0~1 로 자른다\n④ 곱한다",
-                    "Mathf.Clamp01(up.y) * Mathf.Clamp01(height / standHeight)" },
-                skeleton = "return Mathf.Clamp01(___) * Mathf.Clamp01(___);",
-                explain = "Clamp01 은 0~1 로 자른다. 곱하면 하나라도 0이면 0점 —\n쪼그려 앉아 똑바로 있기, 기운 채 높이 있기를 동시에 막는다." });
+                    "판이 시작되면 \"처음과 똑같은 상황\"이어야 한다. 몸 · 관절 목표 · (있으면) 키보드 행동.",
+                    "① body.ResetBody()\n② 키보드가 있으면(null 이 아니면) 키보드 행동도 0 으로",
+                    "body.ResetBody();\nif (_keyboard != null) _keyboard.ResetActions();" },
+                skeleton = "body.___();\nif (_keyboard != ___) _keyboard.___();",
+                explain = "키보드(KeyboardControl)는 학습할 때 없을 수도 있다 — 없을 때 그냥 부르면 NullReferenceException.\nnull 검사는 \"있을 수도 없을 수도 있는 컴포넌트\"를 다룰 때 늘 한다.",
+                answer = "body.ResetBody();\nif (_keyboard != null) _keyboard.ResetActions();    // Heuristic일 때 이전 판의 키보드 자세가 남지 않게" });
+
+            ch.steps.Add(new Step { title = "실습 3-2  관측 — CollectObservations", blank = "3-2",
+                goal = "AI에게 보여 줄 숫자 48개를 정해진 순서로 넣는다",
+                concept = "StandAgent.CollectObservations(sensor) — AI가 판단할 때마다 부른다. sensor.AddObservation(값) 으로 숫자를 넣는다.\n" +
+                          "넣을 것 (순서대로, 합 48):\n" +
+                          "  1   골반 높이              body.pelvis.transform.position.y − transform.position.y\n" +
+                          "  3   몸이 느끼는 아래쪽       HumanoidMath.DownInBody(골반 회전)  (주어진 함수 — 기울기)\n" +
+                          "  3   골반 속도 (골반 기준)    pelvis.InverseTransformDirection(body.pelvis.rb.linearVelocity)\n" +
+                          "  3   골반 회전 속도 (골반 기준) …rb.angularVelocity 를 같은 방법으로\n" +
+                          "  36  축마다 [각도 -1~1, 속도/10]   body.NormalizedAngle(i) · body.Rate(i) / 10f   (i = 0 ~ JointCount-1)\n" +
+                          "  2   왼발 · 오른발 바닥 접촉    body.footL.touchingGround · body.footR.touchingGround\n" +
+                          "\n" +
+                          "개수는 Behavior Parameters 의 Space Size(48)와 반드시 같아야 한다. Vector3 는 한 번에 3개가 들어간다.",
+                hints = new[] {
+                    "RollerBall 은 공 위치 · 속도 · 목표 위치를 넣었다. 여기서는 \"균형을 잡는 데 필요한 것\"을 넣는다.\n몸 기준(골반 기준)으로 넣어야 어느 쪽을 보고 서 있든 같은 자세에 같은 숫자가 나온다.",
+                    "① Transform pelvis = body.pelvis.transform;\n② 높이 1 → 기울기 3 → 속도 3 → 회전 속도 3\n③ for 문으로 축마다 각도 · 속도 (번갈아)\n④ 발 접촉 2",
+                    "sensor.AddObservation(pelvis.position.y - transform.position.y);\nsensor.AddObservation(HumanoidMath.DownInBody(pelvis.rotation));\nsensor.AddObservation(pelvis.InverseTransformDirection(body.pelvis.rb.linearVelocity));\nfor 안: sensor.AddObservation(body.NormalizedAngle(i)); sensor.AddObservation(body.Rate(i) / 10f);" },
+                skeleton = "Transform pelvis = body.pelvis.transform;\nsensor.AddObservation(pelvis.position.y - ___);\nsensor.AddObservation(HumanoidMath.DownInBody(___));\nsensor.AddObservation(pelvis.InverseTransformDirection(body.pelvis.rb.___));\nsensor.AddObservation(pelvis.InverseTransformDirection(body.pelvis.rb.___));\nfor (int i = 0; i < body.JointCount; i++)\n{\n    sensor.AddObservation(body.___(i));\n    sensor.AddObservation(body.___(i) / 10f);\n}\nsensor.AddObservation(body.footL.___);\nsensor.AddObservation(body.footR.___);",
+                explain = "관측 순서는 학습 내내 같아야 한다 (신경망은 \"몇 번째 숫자\"로 의미를 안다).\n속도처럼 범위가 정해지지 않은 값은 yaml 의 normalize: true 가 맞춰 준다. 관절 속도를 10으로 나눈 것은 대략 -1~1 로 맞추려는 것.",
+                answer = "Transform pelvis = body.pelvis.transform;\nsensor.AddObservation(pelvis.position.y - transform.position.y);                    // 1 골반 높이\nsensor.AddObservation(HumanoidMath.DownInBody(pelvis.rotation));                    // 3 기울기\nsensor.AddObservation(pelvis.InverseTransformDirection(body.pelvis.rb.linearVelocity));  // 3 속도\nsensor.AddObservation(pelvis.InverseTransformDirection(body.pelvis.rb.angularVelocity)); // 3 회전 속도\nfor (int i = 0; i < body.JointCount; i++)\n{\n    sensor.AddObservation(body.NormalizedAngle(i));                                 // 18 관절 각도\n    sensor.AddObservation(body.Rate(i) / 10f);                                      // 18 관절 속도\n}\nsensor.AddObservation(body.footL.touchingGround);                                   // 1 왼발 접촉\nsensor.AddObservation(body.footR.touchingGround);                                   // 1 오른발 접촉" });
+
+            ch.steps.Add(new Step { title = "실습 3-3  행동 · 보상 · 판 끝 — OnActionReceived", blank = "3-3",
+                start = "// TODO: 행동 18개를 몸에 보낸다\n\n// 판 도중에 몸통을 무작위로 민다 (주어진 코드)\nif (pushInterval > 0 && StepCount % pushInterval == pushInterval / 2)\n{\n    Vector2 dir = Random.insideUnitCircle.normalized;\n    body.torso.rb.AddForce(new Vector3(dir.x, 0f, dir.y) * Random.Range(0f, maxPush), ForceMode.Impulse);\n}\n\n// TODO: 이번 스텝 보상을 더하고, 넘어졌으면 판을 끝낸다\n\nif (_keyboard != null) _keyboard.statusLine = Status();     // 화면에 보여줄 한 줄 (주어진 코드)",  mode = "일부 코드 제공",
+                goal = "AI의 행동을 몸에 보내고, 보상을 주고, 넘어지면 판을 끝낸다",
+                concept = "StandAgent.OnActionReceived(actions) — AI(또는 Heuristic)가 행동을 정할 때마다 부른다. 강화학습 한 스텝의 중심이다.\n" +
+                          "쓸 수 있는 것:\n" +
+                          "  actions.ContinuousActions[i]   행동 i번 (-1~1)              _actions   행동을 옮겨 담을 float[18] (주어진 배열)\n" +
+                          "  body.SetActions(배열)           실습 2-2                       StepReward()   이번 스텝 보상 0~1 (주어진 함수: 똑바름 × 높이)\n" +
+                          "  AddReward(값) · EndEpisode()    ML-Agents                     body.HasFallen   실습 1-2\n" +
+                          "\n" +
+                          "밀기와 화면 표시 줄은 주어져 있다. 넘어지면 판을 끝낸다 — 벌점은 없다. 앞으로 받을 보상이 사라지는 것 자체가 벌이다.",
+                hints = new[] {
+                    "한 스텝은 \"행동 → 결과 → 보상 → 끝났나?\" 순서다. RollerBall 의 OnActionReceived 와 같은 모양이다.",
+                    "① for 문으로 actions.ContinuousActions[i] 를 _actions[i] 에 옮긴 뒤 body.SetActions(_actions)\n② AddReward(StepReward())\n③ body.HasFallen 이면 EndEpisode()",
+                    "for (int i = 0; i < _actions.Length; i++) _actions[i] = actions.ContinuousActions[i];\nbody.SetActions(_actions);\nAddReward(StepReward());\nif (body.HasFallen) EndEpisode();" },
+                skeleton = "for (int i = 0; i < _actions.Length; i++) _actions[i] = actions.___[i];\nbody.SetActions(___);\n\n(밀기 — 주어진 코드)\n\nAddReward(___());\nif (body.___) ___();\n\n(화면 표시 — 주어진 코드)",
+                explain = "EndEpisode() 를 부르면 ML-Agents 가 곧바로 OnEpisodeBegin(실습 3-1)을 불러 새 판을 연다.\n보상은 매 스텝 0~1 이라 오래 서 있을수록 많이 받는다. 할인율 γ=0.99 면 매 스텝 1점의 합은 100 — 넘어지면 이것을 잃는다.",
+                answer = "for (int i = 0; i < _actions.Length; i++) _actions[i] = actions.ContinuousActions[i];\nbody.SetActions(_actions);\n\nif (pushInterval > 0 && StepCount % pushInterval == pushInterval / 2)\n{\n    Vector2 dir = Random.insideUnitCircle.normalized;\n    body.torso.rb.AddForce(new Vector3(dir.x, 0f, dir.y) * Random.Range(0f, maxPush), ForceMode.Impulse);\n}\n\nAddReward(StepReward());\n\n// 넘어지면 판을 끝낸다. 벌점은 없다. 앞으로 받을 보상이 사라지는 것 자체가 벌이다.\nif (body.HasFallen) EndEpisode();\n\nif (_keyboard != null) _keyboard.statusLine = Status();" });
 
             s = new Step { title = "Heuristic 으로 먼저 돌려 보기", goal = "학습 전에 에러 없이 판이 돌아가는지 확인한다",
                 concept = "Heuristic Only = AI 대신 키보드가 행동을 낸다.\n" +
@@ -578,24 +634,8 @@ namespace HumanoidEditor
             // 걷기 보상
             // ═══════════════════════════════════════════════════════════
             ch = new Chapter { title = "4. 걷기 보상", doc = "04-걷기-보상.md",
-                goals = new[] { "목표 상자와 걷기 에이전트를 직접 붙인다", "몸이 기울어도 변하지 않는 '보는 방향'을 계산한다", "속도 × 방향 보상으로 스스로 걷는 정책을 학습한다 (최종 과제)" } };
+                goals = new[] { "목표 상자와 걷기 에이전트를 직접 붙인다", "목표 관측 · 도달 보상 · 제한시간 판 끝을 직접 쓴다", "속도 × 방향 보상으로 스스로 걷는 정책을 학습한다 (최종 과제)" } };
             list.Add(ch);
-
-            ch.steps.Add(new Step { title = "실습 4-1  좌우 회전만", blank = "4-1",
-                start = "forward.y = 0f;     // 앞뒤 기울기를 버린다 (주어진 코드)\nreturn Quaternion.identity;",  mode = "일부 코드 제공",
-                goal = "주어진 첫 줄에서 출발해, 바라보는 방향의 좌우 회전만 남기는 함수를 완성한다",
-                concept = "HeadingRotation(forward) — 바라보는 방향에서 좌우 회전만 남긴 회전을 돌려준다.\n" +
-                          "목표 방향을 '내가 보는 방향' 기준으로 관측할 때 쓴다. 걷는 몸은 앞뒤로 기우는데,\n" +
-                          "기운 정면을 그대로 쓰면 '땅을 보는 방향'이 된다.\n" +
-                          "  정면 → 회전 없음   오른쪽(+x) → 좌우 90도   숙인 채 오른쪽 → 좌우 90도만   바로 아래 → 회전 없음\n" +
-                          "\n" +
-                          "첫 줄(y 버리기)은 주어져 있다. 나머지를 작성한다.",
-                hints = new[] {
-                    "y 를 버린 forward 는 수평 방향이다. 그 방향을 '바라보는' 회전을 만들면 된다.\n단, 바로 위/아래를 보면 y 를 버린 뒤 길이가 0이라 방향이 없다.",
-                    "① (주어짐) y = 0\n② 길이가 거의 0이면 Quaternion.identity\n③ 아니면 그 방향을 보는 회전을 돌려준다",
-                    "길이 검사:    forward.sqrMagnitude < 1e-6f\n보는 회전:    Quaternion.LookRotation(forward.normalized)" },
-                skeleton = "forward.y = ___;\nif (forward.sqrMagnitude < 1e-6f) return Quaternion.identity;\nreturn Quaternion.LookRotation(___);",
-                explain = "LookRotation(방향)은 +z 가 그 방향을 보게 하는 회전이다. 길이 0 벡터를 넣으면 경고와 함께 엉뚱한 값이 나오므로 먼저 검사한다.\nsqrMagnitude 는 제곱근을 구하지 않아 magnitude 보다 빠르다." });
 
             s = new Step { title = "목표 상자", goal = "걸어갈 목표를 학습 영역에 놓는다",
                 concept = "에이전트가 판마다 이 상자를 몸 주변 4~8m 무작위 자리로 옮긴다. 닿으면 +1 하고 다음 자리로.\n" +
@@ -625,35 +665,61 @@ namespace HumanoidEditor
             s.Do("Behavior Name: HumanoidWalk", () => Brain != null && Brain.BehaviorName == "HumanoidWalk").Insp(Root, typeof(BehaviorParameters), "Behavior Name");
             ch.steps.Add(s.Do("Space Size: 51", () => Brain != null && Brain.BrainParameters.VectorObservationSize == 51).Insp(Root, typeof(BehaviorParameters), "Vector Observation ▸ Space Size"));
 
-            ch.steps.Add(new Step { title = "실습 4-2  속도 보상", blank = "4-2",
-                start = "velocity.y = 0f;     // 떨어지는 속도는 걷기가 아니다 (주어진 코드)\nreturn 0f;",  mode = "일부 코드 제공",
-                goal = "주어진 첫 줄에서 출발해, 목표 속도에 가까울수록 높은 점수를 주는 함수를 완성한다",
-                concept = "SpeedReward(velocity, direction, targetSpeed) — 목표 속도로 목표 쪽으로 가면 1, 멈추거나 반대로 가면 0.\n" +
-                          "  목표 속도(벡터) = direction × targetSpeed,  d = 실제 속도와의 차이 크기 (0~targetSpeed 로 자른다)\n" +
-                          "  점수 = (1 − (d/targetSpeed)²)²\n" +
-                          "  그대로 → 1   멈춤 → 0   절반 속도 → 0.5625   반대로 달림 → 0\n" +
+            ch.steps.Add(new Step { title = "실습 4-1  목표 관측 +3", blank = "4-1",
+                start = "base.CollectObservations(sensor);     // 서기의 관측 48개 (주어진 코드)",  mode = "기능 추가",
+                goal = "서기 관측 48개에 \"목표가 어느 쪽 · 얼마나 빨리\"를 3개 더한다",
+                concept = "WalkAgent.CollectObservations(sensor) — StandAgent 의 것을 덮어쓴다(override). 서기 관측 48개는 base 로 그대로 넣었다.\n" +
+                          "더할 것 (합 51):\n" +
+                          "  2   목표 방향을 \"내가 보는 방향\" 기준으로 — x(오른쪽+) · z(앞+)\n" +
+                          "  1   목표 속도 targetSpeed\n" +
+                          "쓸 수 있는 것: DirectionToTarget() (몸 → 목표 수평 방향, 길이 1)\n" +
+                          "               HumanoidMath.HeadingRotation(body.pelvis.transform.forward)  보는 방향의 좌우 회전만 (주어진 함수)\n" +
                           "\n" +
-                          "몸 전체 속도는 1장 무게중심 함수에 속도를 넣어 구한다. 첫 줄은 주어져 있다.",
+                          "세상 기준 방향을 그대로 주면, 같은 \"목표가 오른쪽\"인 상황도 몸이 어디를 보느냐에 따라 숫자가 달라진다.",
                 hints = new[] {
-                    "'얼마나 틀렸나'를 먼저 구한다. 실제 속도와 목표 속도(벡터)의 차이의 크기가 d 다.\nd 가 0이면 1점, targetSpeed 이상이면 0점.",
-                    "① (주어짐) y 버리기\n② 목표 속도 벡터 = direction * targetSpeed\n③ d = 두 벡터 차이의 크기, 0~targetSpeed 로 자르기\n④ r = 1 − (d/targetSpeed)²\n⑤ r 을 제곱해서 돌려준다",
-                    "float d = Mathf.Clamp((velocity - direction * targetSpeed).magnitude, 0f, targetSpeed);\nfloat r = 1f - (d / targetSpeed) * (d / targetSpeed);\nreturn r * r;" },
-                skeleton = "velocity.y = 0f;\nfloat d = Mathf.Clamp(___, 0f, targetSpeed);\nfloat r = 1f - (d / targetSpeed) * (d / targetSpeed);\nreturn ___;",
-                explain = "d 를 targetSpeed 로 자르기 때문에 아무리 틀려도 0 아래로 내려가지 않는다 (반대로 달림 케이스).\n제곱을 두 번 해서 목표 근처에서는 점수가 완만하고 멀어질수록 빨리 떨어진다." });
+                    "세상 방향 → 내 방향은 \"내가 돈 만큼 거꾸로 돌리기\"다: Quaternion.Inverse(내 회전) * 방향.",
+                    "① 보는 방향 회전 = HeadingRotation(골반 forward)\n② local = Inverse(그 회전) * DirectionToTarget()\n③ local.x · local.z · targetSpeed 를 넣는다",
+                    "Vector3 local = Quaternion.Inverse(HumanoidMath.HeadingRotation(body.pelvis.transform.forward)) * DirectionToTarget();\nsensor.AddObservation(local.x);  sensor.AddObservation(local.z);  sensor.AddObservation(targetSpeed);" },
+                skeleton = "base.CollectObservations(sensor);\nVector3 local = Quaternion.Inverse(HumanoidMath.HeadingRotation(___)) * ___();\nsensor.AddObservation(local.___);\nsensor.AddObservation(local.___);\nsensor.AddObservation(___);",
+                explain = "상속(override)으로 바뀐 것만 쓴다 — 서기의 48개는 base 가 넣는다. local.y 는 수평 방향이라 늘 0 이어서 넣지 않는다.\nBehavior Parameters 의 Space Size 도 51 로 바꿔야 한다.",
+                answer = "base.CollectObservations(sensor);                                                   // 48\n// 목표 방향을 \"내가 보는 방향\" 기준으로. 어느 쪽을 보든 같은 상황이면 같은 숫자가 나와야 한다.\nVector3 local = Quaternion.Inverse(HumanoidMath.HeadingRotation(body.pelvis.transform.forward)) * DirectionToTarget();\nsensor.AddObservation(local.x);                                                     // 1\nsensor.AddObservation(local.z);                                                     // 1\nsensor.AddObservation(targetSpeed);                                                 // 1" });
 
-            ch.steps.Add(new Step { title = "실습 4-3  방향 보상", blank = "4-3",
-                goal = "몸이 목표 쪽을 볼수록 높은 점수를 주는 함수를 직접 만든다",
-                concept = "FacingReward(forward, direction) — 몸이 목표 쪽을 보면 1, 옆이면 0.5, 반대면 0.\n" +
-                          "  고개를 숙인 것(위아래 성분)은 따지지 않는다\n" +
+            ch.steps.Add(new Step { title = "실습 4-2  걷기 보상 — 목표 도달", blank = "4-2",
+                start = "Vector3 dir = DirectionToTarget();\nVector3 velocity = body.CenterOfMassVelocity;\n\n// TensorBoard 성적표에 쓸 기록 (주어진 코드)\n_speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));\n_fell |= body.HasFallen;\n\n// TODO: 목표에 닿았으면 보너스 1 · 도달 수 +1 · 새 목표.  그리고 속도 점수 × 방향 점수를 더해 돌려준다\nreturn 0f;",  mode = "일부 코드 제공",
+                goal = "목표에 닿으면 +1 하고 새 목표로, 평소에는 \"속도 × 방향\" 점수를 준다",
+                concept = "WalkAgent.StepReward() — 서기 보상을 덮어쓴다. 3장의 OnActionReceived 가 이 값을 AddReward 한다.\n" +
+                          "쓸 수 있는 것:\n" +
+                          "  target (목표 Transform) · body.pelvis.transform.position     MoveTarget()  목표를 새 자리로 + 새 제한시간\n" +
+                          "  _reached  닿은 목표 수                                      dir · velocity  (주어진 줄)\n" +
+                          "  HumanoidMath.SpeedReward(velocity, dir, targetSpeed)  목표 속도로 갈수록 1  (주어진 함수)\n" +
+                          "  HumanoidMath.FacingReward(body.torso.transform.forward, dir)  목표 쪽을 볼수록 1  (주어진 함수)\n" +
                           "\n" +
-                          "걷기 보상 = 속도(4-2) × 방향(4-3). 곱하면 둘 다 만족해야 점수가 난다.\n" +
-                          "더하면 '목표를 보고 서 있기'나 '뒷걸음질'도 절반을 받아 AI가 쉬운 쪽만 한다.",
+                          "닿음 = 수평 거리 0.6m 안. 닿아도 판은 끝내지 않는다 — 계속 걷게 한다 (잘 맞힐수록 오래 산다).\n" +
+                          "두 점수는 더하지 않고 곱한다 — 목표를 보고 서 있기 · 엉뚱한 데로 달리기는 0점에 가깝다.",
                 hints = new[] {
-                    "두 방향이 얼마나 같은지는 내적(Vector3.Dot)으로 잰다.\n길이 1 벡터끼리 내적은 같으면 1, 수직이면 0, 반대면 -1.",
-                    "① 두 벡터의 y 를 버린다\n② 길이를 1로 만든다\n③ 내적한다 (-1~1)\n④ 0~1 로 옮긴다",
-                    "Vector3.Dot(forward.normalized, direction.normalized) 의 결과 -1~1 을 (값 + 1) * 0.5 로 0~1 로." },
-                skeleton = "forward.y = 0f;\ndirection.y = 0f;\nreturn (Vector3.Dot(___, ___) + 1f) * 0.5f;",
-                explain = "y 를 버린 뒤 normalized 해야 숙인 몸통도 길이 1이 된다 (경계 케이스 '고개 숙임').\n(값 + 1) / 2 는 -1~1 을 0~1 로 옮기는 흔한 방법이다." });
+                    "보상 = (닿았으면 1) + 속도 점수 × 방향 점수.  닿았을 때 할 일 세 가지: 보너스 · 도달 수 · 새 목표.",
+                    "① toTarget = 목표 − 골반 위치, y 는 0 (수평 거리)\n② 길이 < 0.6 이면 bonus = 1, _reached++, MoveTarget()\n③ return bonus + SpeedReward(…) * FacingReward(…)",
+                    "Vector3 toTarget = target.position - body.pelvis.transform.position;  toTarget.y = 0f;\nfloat bonus = 0f;\nif (toTarget.magnitude < 0.6f) { bonus = 1f; _reached++; MoveTarget(); }\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed) * HumanoidMath.FacingReward(body.torso.transform.forward, dir);" },
+                skeleton = "(주어진 줄들)\n\nVector3 toTarget = target.position - body.pelvis.transform.position;\ntoTarget.y = ___;\nfloat bonus = 0f;\nif (toTarget.___ < 0.6f) { bonus = ___; _reached++; ___(); }\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed) * HumanoidMath.___(body.torso.transform.forward, dir);",
+                explain = "RollerBall 은 목표에 닿으면 +1 하고 판을 끝냈다. 여기서는 목표만 옮기고 판을 이어 간다 — 계속 걷는 법을 배우게.\nMoveTarget() 이 제한시간도 새로 준다(실습 4-3에서 쓴다).",
+                answer = "Vector3 dir = DirectionToTarget();\nVector3 velocity = body.CenterOfMassVelocity;\n\n// 목표 쪽으로 실제로 얼마나 빨리 가고 있나 → 판 평균\n_speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));\n_fell |= body.HasFallen;\n\n// 목표에 닿으면 +1 하고 새 자리로 옮긴다 (제한시간도 새로). 판은 끝내지 않는다 (계속 걷게)\nVector3 toTarget = target.position - body.pelvis.transform.position;\ntoTarget.y = 0f;\nfloat bonus = 0f;\nif (toTarget.magnitude < 0.6f) { bonus = 1f; _reached++; MoveTarget(); }\n\n// 더하지 않고 곱한다. 엉뚱한 쪽을 보고 달리거나, 목표를 보고 서 있기만 하면 0점에 가깝다.\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed)\n             * HumanoidMath.FacingReward(body.torso.transform.forward, dir);" });
+
+            ch.steps.Add(new Step { title = "실습 4-3  제한시간 — 못 닿으면 판 끝", blank = "4-3",
+                start = "base.OnActionReceived(actions);     // 서기의 행동 · 보상 · 넘어지면 끝내기 (주어진 코드)",  mode = "기능 추가",
+                goal = "목표마다 주어진 제한시간이 지나면 판을 끝낸다",
+                concept = "WalkAgent.OnActionReceived(actions) — 서기의 것(행동 · 보상 · 넘어지면 끝)을 base 로 그대로 하고, 판 끝 조건을 하나 더한다.\n" +
+                          "쓸 수 있는 것: StepCount (이번 판에서 지난 스텝 수)  ·  _deadline (이 스텝까지 목표에 닿아야 한다 — MoveTarget 이 정한다)\n" +
+                          "               EndEpisode()\n" +
+                          "\n" +
+                          "제한시간 = 목표까지 거리 ÷ 목표 속도 × 2 + 5초. 닿으면 새 목표 · 새 제한시간이라, 잘 맞힐수록 판이 길어진다.\n" +
+                          "RollerBall 처럼 \"실패하면 끝, 잘하면 계속\" — 에피소드 길이가 곧 성적이 된다. 벌점은 없다.",
+                hints = new[] {
+                    "\"지금 스텝이 마감 스텝을 넘었으면\" 판을 끝낸다. base 는 그대로 두고 그 아래에 한 줄.",
+                    "① (주어진) base.OnActionReceived(actions)\n② StepCount 가 _deadline 보다 크면 EndEpisode()",
+                    "if (StepCount > _deadline) EndEpisode();" },
+                skeleton = "base.OnActionReceived(actions);\nif (___ > ___) ___();",
+                explain = "base 안에서 넘어져 판이 이미 끝났다면 새 판이 시작되며 StepCount 는 0, _deadline 은 새로 정해져 있다 — 두 번 끝나지 않는다.\n판을 끝내는 조건을 여러 개 둘 때는 이렇게 \"기존 것 + 하나\"로 쌓는다.",
+                answer = "base.OnActionReceived(actions);     // 행동 · 보상 · 넘어지면 끝내기 (넘어져서 끝났으면 새 판이 이미 시작됐다)\n\n// 제한시간 안에 목표에 못 닿으면 판을 끝낸다. 벌점은 없다 — 넘어짐과 같이, 앞으로 받을 보상이 사라지는 것이 벌이다.\nif (StepCount > _deadline) EndEpisode();" });
 
             s = new Step { title = "서 있으면 0점", goal = "학습 전 상태를 확인한다",
                 concept = "Heuristic Only 로 Play하면 키보드로 아무리 움직여도 보상이 거의 0이다.\n" +
@@ -676,42 +742,42 @@ namespace HumanoidEditor
             // 학습과 평가
             // ═══════════════════════════════════════════════════════════
             ch = new Chapter { title = "5. 학습과 평가", doc = "05-학습과-평가.md",
-                goals = new[] { "코드 수정 없이 병렬 학습한다", "커리큘럼으로 목표 속도를 올린다", "보상 말고 진짜 목표를 지표로 잰다" } };
+                goals = new[] { "코드 수정 없이 병렬 학습한다", "커리큘럼으로 목표 속도를 올린다", "보상 말고 진짜 목표를 지표로 남기고, 커리큘럼 값을 읽는다" } };
             list.Add(ch);
 
-            ch.steps.Add(new Step { title = "실습 5-1  SpeedStats 클래스", blank = "5-1",
-                start = "public int Count => 0;\npublic float Average => 0f;\n\npublic void Add(float value)\n{\n}\n\npublic void Clear()\n{\n}",  mode = "처음부터 (클래스 설계)",
-                goal = "한 판의 속도를 기록하는 작은 클래스를 직접 설계하고 구현한다",
-                concept = "SpeedStats — Walk Agent 가 매 스텝 Add 하고, 판이 끝나면 Average 를 TensorBoard 의 Walk/Speed 에 남긴 뒤 Clear 한다.\n" +
-                          "  Add(value)   값을 하나 더한다\n" +
-                          "  Count        지금까지 더한 개수\n" +
-                          "  Average      지금까지의 평균 (아무것도 없으면 0)\n" +
-                          "  Clear()      처음 상태로\n" +
+            ch.steps.Add(new Step { title = "실습 5-1  성적 기록 — StatsRecorder", blank = "5-1",
+                goal = "판이 끝날 때마다 걷기 성적 네 가지를 TensorBoard 에 남긴다",
+                concept = "WalkAgent.RecordStats() — 새 판이 시작될 때(OnEpisodeBegin) 지난 판의 성적을 남긴다.\n" +
+                          "쓸 수 있는 것:\n" +
+                          "  Academy.Instance.StatsRecorder.Add(\"이름\", 값)   TensorBoard 에 값을 남긴다 (ML-Agents)\n" +
+                          "  _speed (SpeedStats)  .Count · .Average · .Error(targetSpeed)     _fell  이번 판에 넘어졌나     _reached  닿은 목표 수\n" +
+                          "남길 것:  Walk/Speed = 평균 속도 · Walk/SpeedError = 속도 오차 · Walk/FallRate = 넘어졌으면 1 아니면 0 · Walk/Targets = 닿은 수\n" +
+                          "첫 판처럼 기록이 하나도 없으면(_speed.Count == 0) 아무것도 남기지 않는다.\n" +
                           "\n" +
-                          "값을 전부 저장하지 않는다 (한 판 최대 5000 스텝 × 에이전트 36개).\n" +
-                          "멤버의 이름과 모양은 Walk Agent 가 쓰고 있어 주어져 있다. 무엇을 기억할지(필드)와 동작(메서드 속)을 직접 설계한다.",
+                          "보상만 보면 \"정말 잘 걷는지\"를 모른다. 진짜 목표를 따로 재서 남긴다.",
                 hints = new[] {
-                    "클래스 = 상태(기억할 값) + 동작(메서드). 평균을 내려면 무엇을 기억해야 할까?\n값 전부가 아니라 '개수'와 '지금까지의 평균' 두 개면 충분하다.",
-                    "① Count · Average 가 값을 저장하는 속성이 되게 바꾼다 (예: public int Count { get; private set; })\n② Add: 개수를 1 늘리고 평균을 갱신한다\n③ Clear: 둘 다 0 으로",
-                    "누적 평균:  새 평균 = 옛 평균 + (새 값 − 옛 평균) / 새 개수\n개수를 먼저 늘린 뒤 나눈다 (첫 값에서 0으로 나누지 않게).\n바깥에서 값을 바꾸지 못하게 set 은 private." },
-                skeleton = "public int Count { get; private set; }\npublic float Average { get; private set; }\n\npublic void Add(float value)\n{\n    Count___;\n    Average += ___;\n}\n\npublic void Clear()\n{\n    ___\n}",
-                explain = "{ get; private set; } 은 읽기는 누구나, 쓰기는 이 클래스만 하는 속성이다.\n누적 평균은 합계를 따로 들고 있지 않아 값이 아무리 많아도 메모리가 늘지 않는다.\nCount 를 먼저 늘려야 첫 값에서 0으로 나누지 않는다. Clear 에서 Count 를 안 지우면 다음 판 평균이 틀어진다." });
+                    "StatsRecorder 는 이름을 \"그룹/이름\" 으로 쓰면 TensorBoard 에서 그룹으로 묶인다 (Walk/…).",
+                    "① _speed.Count 가 0 이면 return\n② var stats = Academy.Instance.StatsRecorder;\n③ 네 가지를 stats.Add 로",
+                    "if (_speed.Count == 0) return;\nvar stats = Academy.Instance.StatsRecorder;\nstats.Add(\"Walk/Speed\", _speed.Average);   stats.Add(\"Walk/SpeedError\", _speed.Error(targetSpeed));\nstats.Add(\"Walk/FallRate\", _fell ? 1f : 0f);   stats.Add(\"Walk/Targets\", _reached);" },
+                skeleton = "if (_speed.Count == 0) ___;\nvar stats = Academy.Instance.___;\nstats.Add(\"Walk/Speed\", _speed.___);\nstats.Add(\"Walk/SpeedError\", _speed.Error(___));\nstats.Add(\"Walk/FallRate\", _fell ? ___ : ___);\nstats.Add(\"Walk/Targets\", ___);",
+                explain = "FallRate 를 판마다 0/1 로 남기면 TensorBoard 가 평균 낸 값이 곧 \"넘어지는 비율\"이 된다.\n학습 중 Python 쪽으로 보내져 results/ 의 TensorBoard 기록에 쌓인다.",
+                answer = "if (_speed.Count == 0) return;\nvar stats = Academy.Instance.StatsRecorder;\nstats.Add(\"Walk/Speed\", _speed.Average);\nstats.Add(\"Walk/SpeedError\", _speed.Error(targetSpeed));\nstats.Add(\"Walk/FallRate\", _fell ? 1f : 0f);    // 판마다 0/1 → 평균이 곧 넘어짐 비율\nstats.Add(\"Walk/Targets\", _reached);" });
 
-            ch.steps.Add(new Step { title = "실습 5-2  속도 오차 기능", blank = "5-2",
-                start = "return Mathf.Abs(Average - targetSpeed) / targetSpeed;",  mode = "기능 추가",
-                goal = "SpeedStats 의 오차 기능에 '목표 0' 처리를 덧붙인다",
-                concept = "SpeedStats.Error(targetSpeed) — |평균 − 목표| / 목표. 0이면 완벽, 1이면 100% 틀림 (두 배 빨라도 오차).\n" +
-                          "시작 코드는 식만 있다. 목표 속도가 0 이하면 0으로 나누게 된다 → 그때는 0을 돌려주도록 덧붙인다.\n" +
-                          "5-1 의 Average 를 쓰므로 5-1 을 먼저 통과해야 한다.\n" +
+            ch.steps.Add(new Step { title = "실습 5-2  커리큘럼 값 읽기", blank = "5-2",
+                goal = "yaml 커리큘럼이 정한 목표 속도를 판마다 읽어 온다",
+                concept = "WalkAgent.ReadCurriculum() — 판이 시작될 때 부른다. targetSpeed 를 커리큘럼 값으로 바꾼다.\n" +
+                          "쓸 수 있는 것: Academy.Instance.EnvironmentParameters.GetWithDefault(\"이름\", 기본값)\n" +
+                          "               학습기(yaml)가 보낸 값을 읽는다. 값이 없으면(커리큘럼 없음 · 학습기 없이 Play) 기본값을 돌려준다.\n" +
                           "\n" +
-                          "보상이 올라도 실제로는 이상하게 걸을 수 있다. 진짜 하고 싶은 것을 따로 잰다:\n" +
-                          "  Walk/Speed · Walk/SpeedError · Walk/FallRate · Walk/Targets",
+                          "yaml 의 environment_parameters: target_speed 가 0.5 → 1.0 → 1.5 로 올라간다. 코드는 이 한 줄만 있으면 된다.\n" +
+                          "기본값으로 지금 targetSpeed(Inspector 값)를 주면, 커리큘럼이 없을 때 그대로 유지된다.",
                 hints = new[] {
-                    "있는 식은 맞다. 목표 0 이 들어오면 무한대가 나온다. 먼저 테스트로 확인한다.",
-                    "① 맨 앞에서 targetSpeed 가 0 이하인지 검사\n② 그렇다면 바로 0 을 돌려준다\n③ 아니면 원래 식",
-                    "if (targetSpeed <= 0f) return 0f;   를 원래 줄 앞에 넣는다." },
-                skeleton = "if (targetSpeed <= ___) return ___;\nreturn Mathf.Abs(Average - targetSpeed) / targetSpeed;",
-                explain = "'이른 반환(early return)'으로 예외 상황을 먼저 걸러 내면 본래 식은 손대지 않아도 된다." });
+                    "이름은 yaml 과 똑같이 \"target_speed\". 기본값은 지금 값.",
+                    "① GetWithDefault(\"target_speed\", targetSpeed) 로 읽는다\n② targetSpeed 에 넣는다",
+                    "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed);" },
+                skeleton = "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(___, ___);",
+                explain = "커리큘럼 단계가 바뀌면 다음 판부터 새 값이 온다. 판 시작 때 읽는 이유다.\n이름 철자가 yaml 과 다르면 에러 없이 늘 기본값만 나온다 — 커리큘럼이 \"안 먹는\" 흔한 원인.",
+                answer = "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed);" });
 
             s = new Step { title = "병렬 학습", goal = "학습 영역을 9개로 복제한다",
                 concept = "Behavior Name 이 같은 에이전트는 한 두뇌로 묶인다. 코드는 그대로, 경험은 9배.\n" +

@@ -31,11 +31,7 @@ namespace Humanoid
 
         public void ResetPose()
         {
-            transform.localPosition = _startPosition;
-            transform.localRotation = _startRotation;
-            rb.linearVelocity = Vector3.zero;      // 속도를 안 지우면 넘어지던 기세 그대로 다시 넘어진다
-            rb.angularVelocity = Vector3.zero;
-            touchingGround = false;
+            // 여기에 직접 구현한다.
         }
 
         // Rigidbody가 없는 것(움직이지 않는 것) = 바닥으로 본다.
@@ -45,8 +41,11 @@ namespace Humanoid
         // ── 관절 ───────────────────────────────────────────────────
         // X = 앞뒤로 굽히기, Z = 좌우로 기울이기 (Y 비틀기는 잠갔다)
 
-        // 목표 각도(도). 모터가 이 각도로 당긴다.
-        public void SetTarget(float x, float z) => joint.targetRotation = Quaternion.Euler(x, 0f, z);
+        // 목표 각도(도)를 관절 모터에 넣는다. 모터가 이 각도로 당긴다.
+        public void SetTarget(float x, float z)
+        {
+            // 여기에 직접 구현한다.
+        }
 
         // 지금 관절 각도(도). 오일러각은 무릎을 90도 가까이 접으면 뒤집히므로 쓰지 않고,
         // "내 위쪽이 부모 기준으로 어디를 가리키나"로 계산한다.
