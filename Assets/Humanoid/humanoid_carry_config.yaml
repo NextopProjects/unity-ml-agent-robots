@@ -25,45 +25,5 @@ behaviors:
     time_horizon: 1000
     summary_freq: 50000
 
-# 커리큘럼 — 처음엔 상자가 몸 바로 앞(걷지 않고 팔이 닿음) · 놓을 자리도 옆. 잘하면 멀리 · 사방으로.
-# 단계는 보상으로 넘긴다: 성공한 판의 보상 = 잡기 1 + 들기 1 + 놓기 3 + 다가간 거리. 실패한 판은 대개 3 아래.
-environment_parameters:
-  pick_distance:
-    curriculum:
-      - name: InFront
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 4.0}
-        value: 0.45
-      - name: Near
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 5.0}
-        value: 1.0
-      - name: Mid
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 6.0}
-        value: 2.0
-      - name: Far
-        value: 3.5
-  pick_angle:
-    curriculum:
-      - name: InFront
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 4.0}
-        value: 0
-      - name: Near
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 5.0}
-        value: 30
-      - name: Mid
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 6.0}
-        value: 90
-      - name: Far
-        value: 180
-  place_distance:
-    curriculum:
-      - name: InFront
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 4.0}
-        value: 0.8
-      - name: Near
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 5.0}
-        value: 1.2
-      - name: Mid
-        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 6.0}
-        value: 2.0
-      - name: Far
-        value: 3.0
+# 커리큘럼은 yaml 이 아니라 CarryAgent 안에 있다: 에이전트마다 최근 20판 성공률이 70% 를 넘으면 다음 난이도로.
+# (yaml 커리큘럼은 보상 기준으로만 넘길 수 있는데, 성공 0 인데도 보상이 기준을 넘어 단계가 올라가 버렸다 — 실측)
