@@ -106,7 +106,7 @@ Assets/Humanoid/
 |---|---|
 | `Docs` · `Editor` · `Materials` · `Scenes`(빈 실습 씬 + 정답 씬) · `Scripts` 폴더, `humanoid_config.yaml` · `humanoid_gait_config.yaml` · `PLAN.md` | 그 밖의 모든 것 (`results/` 학습 결과 등) · 담는 폴더 안의 학습 결과 파일 `.onnx` · `.pt` · `.nn` · `.json` |
 
-미리 학습해 둔 모델은 `Assets/Humanoid/results/HumanoidStand.onnx`(서기, 400만 스텝) · `HumanoidWalk.onnx`(걷기, 1000만 스텝) · `HumanoidGait.onnx`(자연스럽게 걷기, 1000만 스텝 · 힘 상한 300)에 있다. 패키지에는 담지 않는다.
+미리 학습해 둔 모델은 `Assets/Humanoid/results/HumanoidStand.onnx`(서기, 400만 스텝) · `HumanoidWalk.onnx`(걷기, 1000만 스텝) · `HumanoidGait.onnx`(자연스럽게 걷기, 1000만 스텝 · 힘 상한 300 · 판 길이 상한 없음)에 있다. 패키지에는 담지 않는다.
 
 뺀 것은 내보낼 때 콘솔에 개수와 폴더 이름으로 나온다 (실측: 35개 담음, `results` 28개 뺌).
 새 폴더를 패키지에 넣으려면 `HumanoidPackageExporter.Folders` 에 이름을 더한다.

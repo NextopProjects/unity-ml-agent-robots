@@ -881,9 +881,11 @@ namespace HumanoidEditor
                           "  단계는 보상이 아니라 진행률(progress)로 넘긴다. 보상 세기가 바뀌면 보상 크기도 바뀌어 기준을 다시 잡아야 해서다.\n\n" +
                           "처음부터 사방 · 1.0 m/s 를 주면, 서는 법도 모르는 몸이 돌기부터 배워야 한다.\n" +
                           "엉덩이에 비틀기 축이 없어서 디딘 발로는 돌 수 없다 — 크게 돌수록 발을 미끄러뜨려야 한다. 정면 목표로 걷는 법부터 배운다.\n\n" +
-                          "실측(에이전트 27 · 1000만 스텝 · 약 80분, 학습 3개를 동시에 돌린 시간):\n" +
-                          "  학습 중 Gait/Tilt 약 9° · Gait/Slip 0.29 m/s · Walk/FallRate 0.06 까지 내려간다.\n" +
-                          "  25% 에서 속도 · 방향이 함께 올라갈 때 성적이 한 번 크게 떨어졌다가 회복한다.\n\n" +
+                          "실측(에이전트 27 · 1000만 스텝 · 약 56분):\n" +
+                          "  판 길이(Episode Length)가 계속 늘어 끝에는 평균 약 10000스텝(210초) · 판당 목표 139개.\n" +
+                          "  학습 중 Gait/Tilt 약 9° · Gait/Slip 0.29 m/s 까지 내려간다.\n" +
+                          "  25% 에서 속도 · 방향이 함께 올라갈 때 성적이 한 번 크게 떨어졌다가 회복한다.\n" +
+                          "  Walk/FallRate 는 1 에 가깝게 나온다 — 상한이 없으면 끝난 판은 거의 다 넘어진 판이라서다(못 걷는다는 뜻이 아니다).\n\n" +
                           "File > Build Profiles 로 빌드한 뒤:\n  mlagents-learn Assets/Humanoid/humanoid_gait_config.yaml --run-id=gait --env=<빌드>.exe --no-graphics --num-envs=3",
                 hint = "'worker in use' 오류는 --base-port=5020 처럼 바꾼다. 학습 중 Gait/… 그래프가 안 보이면 실습 5-1 의 이름 철자를 본다." };
             s.Do("yaml 을 열어 environment_parameters 를 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_gait_config.yaml"));
@@ -895,19 +897,20 @@ namespace HumanoidEditor
                 concept = "학습 중 그래프는 탐험(무작위 행동) 때문에 실제보다 떤다. 비교는 Inference Only 와 평가 메뉴로 한다.\n" +
                           "평가 메뉴는 매번 같은 씨앗 · 같은 시간(120초)이라, 모델만 바꿔 끼우면 공정하게 비교된다.\n" +
                           "Gait Agent 의 Target Speed 1 · Target Angle 180 (학습 마지막 단계와 같게) 에서 잰다.\n" +
-                          "직접 학습하지 않았으면 미리 학습해 둔 Assets/Humanoid/results/HumanoidGait.onnx 를 써도 된다 (힘 상한 300 으로 학습).\n\n" +
+                          "직접 학습하지 않았으면 미리 학습해 둔 Assets/Humanoid/results/HumanoidGait.onnx 를 써도 된다 (힘 상한 300 · 판 길이 상한 없음으로 학습).\n\n" +
                           "실측(사방 목표 · 1.0 m/s · 120초 × 씨앗 3개 평균):\n" +
                           "              4장 모델   5장 모델\n" +
-                          "  속도          0.74      0.66 m/s\n" +
-                          "  끌림          1.42      0.45 m/m\n" +
-                          "  몸통 기울기   32°       9.5°\n" +
-                          "  떨림          3345      2132 °/s\n" +
-                          "  걸음/초       2.24      1.88\n" +
-                          "  보폭          0.30      0.70 m\n" +
-                          "  발 든 높이    0.11      0.15 m\n" +
-                          "  좌우 균형     0.88      0.90\n" +
+                          "  속도          0.74      0.65 m/s\n" +
+                          "  끌림          1.42      0.44 m/m\n" +
+                          "  몸통 기울기   32°       9.1°\n" +
+                          "  떨림          3345      2406 °/s\n" +
+                          "  걸음/초       2.24      1.82\n" +
+                          "  보폭          0.30      0.69 m\n" +
+                          "  발 든 높이    0.11      0.18 m\n" +
+                          "  좌우 균형     0.88      0.97\n" +
                           "  넘어짐        0         0   (각 360초)\n" +
-                          "끌림 · 기울기는 1/3, 떨림은 2/3 로 줄었다. 대신 속도가 목표(1.0)에서 더 멀어졌다 — 남은 과제다.",
+                          "  600초 연속    -         넘어짐 3 · 목표 79개\n" +
+                          "끌림 · 기울기는 1/3, 떨림은 약 3/4 로 줄었다. 대신 속도가 목표(1.0)에서 더 멀어졌다 — 남은 과제다.",
                 hint = "Model 을 바꾸려면 Play 를 멈추고 바꾼다. 영역이 9개면 원본(첫 번째) 영역의 몸이 평가된다." };
             s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼");
             s.Do("Model 칸에 5장 모델을 넣고 Inference Only 로", () => Brain != null && Brain.Model != null && IsBehavior(BehaviorType.InferenceOnly), "Inference Only", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Model · Behavior Type");
