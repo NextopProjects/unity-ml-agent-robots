@@ -1,0 +1,69 @@
+behaviors:
+
+  # ── 6장: 집어서 옮기기 (관측 65 / 연속 행동 18) ──────────────────────
+  # 걷기(5장)와 같은 몸 · 같은 신경망 크기. 처음부터 학습한다 (관측 수가 달라 5장 모델을 이어 쓸 수 없다).
+  HumanoidCarry:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 2048
+      buffer_size: 20480
+      learning_rate: 3.0e-4
+      beta: 5.0e-3
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+    network_settings:
+      normalize: true
+      hidden_units: 512
+      num_layers: 3
+    reward_signals:
+      extrinsic:
+        gamma: 0.995
+        strength: 1.0
+    max_steps: 30000000        # 걷기만 1000만이 들었다. 잡기 · 들기 · 옮기기까지 더해진다
+    time_horizon: 1000
+    summary_freq: 50000
+
+# 커리큘럼 — 처음엔 상자가 몸 바로 앞(걷지 않고 팔이 닿음) · 놓을 자리도 옆. 잘하면 멀리 · 사방으로.
+# 단계는 보상으로 넘긴다: 성공한 판의 보상 = 잡기 1 + 들기 1 + 놓기 3 + 다가간 거리. 실패한 판은 대개 3 아래.
+environment_parameters:
+  pick_distance:
+    curriculum:
+      - name: InFront
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 4.0}
+        value: 0.45
+      - name: Near
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 5.0}
+        value: 1.0
+      - name: Mid
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 6.0}
+        value: 2.0
+      - name: Far
+        value: 3.5
+  pick_angle:
+    curriculum:
+      - name: InFront
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 4.0}
+        value: 0
+      - name: Near
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 5.0}
+        value: 30
+      - name: Mid
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 6.0}
+        value: 90
+      - name: Far
+        value: 180
+  place_distance:
+    curriculum:
+      - name: InFront
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 4.0}
+        value: 0.8
+      - name: Near
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 5.0}
+        value: 1.2
+      - name: Mid
+        completion_criteria: {measure: reward, behavior: HumanoidCarry, signal_smoothing: true, min_lesson_length: 200, threshold: 6.0}
+        value: 2.0
+      - name: Far
+        value: 3.0

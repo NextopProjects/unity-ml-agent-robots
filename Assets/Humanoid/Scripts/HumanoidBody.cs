@@ -49,6 +49,18 @@ namespace Humanoid
             SetActions(new float[JointCount]);           // 목표도 차렷으로
         }
 
+        // 관절 모터 힘 상한(N·m). 0 이하 = 사실상 무제한 (1~4장).
+        public void SetMaxForce(float limit)
+        {
+            foreach (var p in _parts)
+            {
+                if (p.joint == null) continue;
+                var drive = p.joint.slerpDrive;
+                drive.maximumForce = limit > 0f ? limit : 1e6f;
+                p.joint.slerpDrive = drive;
+            }
+        }
+
         // ── 무게중심 ───────────────────────────────────────────────
 
         public Vector3 CenterOfMass

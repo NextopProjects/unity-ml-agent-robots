@@ -1,0 +1,97 @@
+using Humanoid;
+using Unity.MLAgents.Policies;
+using UnityEditor;
+using UnityEngine;
+using static HumanoidEditor.HumanoidBuild;
+
+namespace HumanoidEditor
+{
+    // 상자 · 작업대 두 개를 놓고 걷기 에이전트를 옮기기 에이전트(CarryAgent)로 바꾼다. 설명은 Docs/06-집어서-옮기기.md
+    internal static class Ch6_Carry
+    {
+        [MenuItem("Humanoid/6. 집어서 옮기기 환경 만들기", false, 7)]
+        static void Setup()
+        {
+            var root = Find("Humanoid");
+            if (root == null) return;
+            var area = root.parent;
+            var go = root.gameObject;
+
+            var target = area.Find("Target");               // 4~5장의 걷기 목표는 쓰지 않는다
+            if (target != null) Undo.DestroyObjectImmediate(target.gameObject);
+
+            var pick = Table(area, "PickTable", new Vector3(0f, 0f, 0.45f));
+            var place = Table(area, "PlaceTable", new Vector3(0.8f, 0f, 0.45f));
+            var marker = Marker(place);
+            var box = Box(area);
+
+            // 새 Agent 를 먼저 붙이고 옛 것을 지운다 (DecisionRequester 가 Agent 를 요구한다)
+            var carry = GetOrAdd<CarryAgent>(go);
+            foreach (var a in go.GetComponents<StandAgent>())
+                if (!(a is CarryAgent)) Undo.DestroyObjectImmediate(a);
+            Undo.RecordObject(carry, "옮기기 에이전트");
+            carry.box = box;
+            carry.pickTable = pick;
+            carry.placeTable = place;
+            carry.placeMarker = marker;
+            carry.pushInterval = 0;
+            carry.MaxStep = 3000;        // 60초. 상자를 떨어뜨리거나 넘어지거나 성공하면 그 전에 끝난다
+
+            var bp = go.GetComponent<BehaviorParameters>();
+            Undo.RecordObject(bp, "두뇌 설정");
+            bp.BehaviorName = "HumanoidCarry";
+            bp.BrainParameters.VectorObservationSize = 65;   // 서기 48 + 상자 · 놓을 자리 17
+
+            EditorUtility.SetDirty(go);
+            Debug.Log("[Humanoid] 집어서 옮기기 — 관측 65 / 행동 18. mlagents-learn Assets/Humanoid/humanoid_carry_config.yaml --run-id=carry");
+        }
+
+        // 작업대: 윗면 높이 1.06 (서서 팔을 앞으로 뻗은 높이에 상자 가운데가 오게).
+        // 움직이지 않는(kinematic) Rigidbody 를 단다 — Rigidbody 가 없으면 BodyPart 가 "바닥"으로 보아, 팔이 닿기만 해도 넘어짐이 된다.
+        static Transform Table(Transform area, string name, Vector3 local)
+        {
+            var old = area.Find(name);
+            if (old != null) Undo.DestroyObjectImmediate(old.gameObject);
+            var t = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            t.name = name;
+            t.transform.SetParent(area, false);
+            t.transform.localPosition = local + Vector3.up * 0.53f;
+            t.transform.localScale = new Vector3(0.25f, 1.06f, 0.25f);
+            t.GetComponent<Renderer>().sharedMaterial = Mat("M_CarryTable", new Color(0.45f, 0.4f, 0.35f));
+            t.AddComponent<Rigidbody>().isKinematic = true;
+            Undo.RegisterCreatedObjectUndo(t, name);
+            return t.transform;
+        }
+
+        // 놓을 자리 표시: 작업대 윗면의 얇은 원판 (콜라이더 없음). 색 = 지난 판 결과
+        static Renderer Marker(Transform place)
+        {
+            var m = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            m.name = "PlaceMarker";
+            m.transform.SetParent(place, false);
+            m.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+            m.transform.localScale = new Vector3(1.2f, 0.005f, 1.2f);     // 부모(0.25 × 1.06 × 0.25) 기준 → 지름 0.3
+            m.GetComponent<Renderer>().sharedMaterial = Mat("M_PlaceMarker", Color.gray);
+            Object.DestroyImmediate(m.GetComponent<Collider>());
+            Undo.RegisterCreatedObjectUndo(m, "놓을 자리 표시");
+            return m.GetComponent<Renderer>();
+        }
+
+        // 상자 0.30 × 0.20 × 0.20 · 1kg. 양팔 사이(아래팔 안쪽 간격 약 0.39)에 조여서 들 수 있는 너비 (실측: 0.26~0.34, 1~2kg 버팀)
+        static CarryBox Box(Transform area)
+        {
+            var old = area.Find("Box");
+            if (old != null) Undo.DestroyObjectImmediate(old.gameObject);
+            var b = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            b.name = "Box";
+            b.transform.SetParent(area, false);
+            b.transform.localPosition = new Vector3(0f, 1.16f, 0.45f);
+            b.transform.localScale = new Vector3(0.30f, 0.20f, 0.20f);
+            b.GetComponent<Renderer>().sharedMaterial = Mat("M_CarryBox", new Color(0.95f, 0.6f, 0.2f));
+            b.AddComponent<Rigidbody>().mass = 1f;
+            var box = b.AddComponent<CarryBox>();
+            Undo.RegisterCreatedObjectUndo(b, "상자");
+            return box;
+        }
+    }
+}

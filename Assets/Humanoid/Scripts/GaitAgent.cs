@@ -44,14 +44,7 @@ namespace Humanoid
             actionRateWeight = p.GetWithDefault("action_rate_weight", actionRateWeight);
             airTimeWeight = p.GetWithDefault("air_time_weight", airTimeWeight);
             maxJointTorque = p.GetWithDefault("max_joint_torque", maxJointTorque);
-
-            foreach (var part in body.GetComponentsInChildren<BodyPart>())
-            {
-                if (part.joint == null) continue;
-                var drive = part.joint.slerpDrive;
-                drive.maximumForce = maxJointTorque > 0f ? maxJointTorque : 1e6f;
-                part.joint.slerpDrive = drive;
-            }
+            body.SetMaxForce(maxJointTorque);
         }
 
         public override void OnActionReceived(ActionBuffers actions)
