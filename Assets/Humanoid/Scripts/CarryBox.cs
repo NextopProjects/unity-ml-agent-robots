@@ -26,13 +26,14 @@ namespace Humanoid
 
         public void ResetContacts() => touchL = touchR = false;
 
-        void OnCollisionStay(Collision c) => Touch(c, true);
-        void OnCollisionExit(Collision c) => Touch(c, false);
+        void OnCollisionStay(Collision c) => Touch(c.collider.name, true);
+        void OnCollisionExit(Collision c) => Touch(c.collider.name, false);
 
-        void Touch(Collision c, bool down)
+        // 부딪힌 것의 이름으로 어느 팔인지 안다. 위팔 · 몸통 · 작업대는 세지 않는다 — 아래팔 두 개로 조여야 잡은 것이다.
+        void Touch(string part, bool down)
         {
-            if (c.collider.name == "ForearmL") touchL = down;
-            else if (c.collider.name == "ForearmR") touchR = down;
+            if (part == "ForearmL") touchL = down;
+            else if (part == "ForearmR") touchR = down;
         }
 
         // 화면 표시: 그대로 주황 · 잡음 노랑 · 들어 올림 초록. 학습 중에도 한눈에 보이게

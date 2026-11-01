@@ -84,6 +84,9 @@ namespace HumanoidEditor
         const string ThighL = Pelvis + "/ThighL";
         const string UpperArmL = Torso + "/UpperArmL";
         const string Target = Area + "/Target";
+        const string PickTable = Area + "/PickTable";
+        const string PlaceTable = Area + "/PlaceTable";
+        const string BoxPath = Area + "/Box";
 
         // ── 조건에서 여러 번 쓰는 것 ────────────────────────────────
 
@@ -927,9 +930,131 @@ namespace HumanoidEditor
                           "  힘 상한 없음 (0)               → 끌림 0.47 · 기울기 10° 는 비슷. 발을 0.24m 로 높이 들고 1.57 걸음/초로 느리게\n" +
                           "  기본 (힘 상한 300)             → 발 든 높이 0.15m · 1.88 걸음/초\n\n" +
                           "한 번에 하나만 바꾼다. 두 개를 같이 바꾸면 무엇 때문에 달라졌는지 모른다.",
-                done = "휴머노이드 트랙 끝! 스스로 걷는 정책을 만들고, 걸음이 이상한 원인을 숫자로 찾아 고치고, 고쳤는지 숫자로 확인했다.",
+                done = "5장 끝 — 걸음이 이상한 원인을 숫자로 찾아 고치고, 고쳤는지 숫자로 확인했다. 6장은 걸어가서 물체를 집어 옮긴다.",
                 solve = () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로") };
             ch.steps.Add(s.Do("세기 하나를 0 으로 바꿔 학습하고, 평가 메뉴로 비교한다"));
+
+            // ═══════════════════════════════════════════════════════════
+            // 집어서 옮기기
+            // ═══════════════════════════════════════════════════════════
+            ch = new Chapter { title = "6. 집어서 옮기기", doc = "06-집어서-옮기기.md",
+                goals = new[] { "작업대 · 상자를 놓고, 양팔로 끼워 드는 물리 파지를 확인한다", "\"정말 놓였는가\" 성공 판정과 성공률 난이도를 직접 쓴다", "걸어가서 집어 옮겨 놓는 작업 전체를 학습하고 성공률로 평가한다" } };
+            list.Add(ch);
+
+            s = new Step { title = "작업대 두 개", goal = "상자를 올려 둘 작업대와 놓을 작업대를 만든다",
+                concept = "휴머노이드는 서서 팔 끝이 약 0.9m 까지만 내려간다. 바닥의 물체를 집으려면 쪼그려 앉아야 해서, 물체와 놓을 자리를 작업대 위에 둔다.\n" +
+                          "윗면 높이 1.06 = 팔을 앞으로 뻗은 높이(약 1.16)에 상자 가운데가 오는 높이 (실측).\n\n" +
+                          "★ Rigidbody 를 달고 Is Kinematic 을 켠다. BodyPart 는 Rigidbody 가 없는 것을 \"바닥\"으로 본다 —\n" +
+                          "   그대로 두면 팔이 작업대에 닿기만 해도 넘어짐이 되어 판이 끝난다. Kinematic = 움직이지 않는 Rigidbody.\n" +
+                          "에이전트가 판마다 두 작업대를 옮긴다(놓을 작업대는 상자 작업대 둘레의 후보 6곳 중 하나).",
+                solve = () => { Ch6_Carry.Table(T(Area), "PickTable", new Vector3(0f, 0f, 0.45f)); Ch6_Carry.Marker(Ch6_Carry.Table(T(Area), "PlaceTable", new Vector3(0.8f, 0f, 0.45f))); } };
+            s.Do("HumanoidArea 아래에 Cube, 이름 PickTable", () => ChildOf(PickTable, Area)).Hier(Area, "우클릭 ▸ 3D Object ▸ Cube ▸ 이름 PickTable");
+            s.Do("Position (0, 0.53, 0.45) · Scale (0.25, 1.06, 0.25)", () => LocalPos(PickTable, new Vector3(0f, 0.53f, 0.45f)) && Near(T(PickTable).localScale, new Vector3(0.25f, 1.06f, 0.25f))).Insp(PickTable, typeof(Transform), "Position · Scale");
+            s.Do("Add Component > Rigidbody, Is Kinematic 켜기", () => Has<Rigidbody>(PickTable) && Get<Rigidbody>(PickTable).isKinematic).Insp(PickTable, typeof(Rigidbody), "Is Kinematic");
+            ch.steps.Add(s.Do("놓을 작업대(PlaceTable)와 그 위 표시(PlaceMarker)는 버튼으로 — 같은 방법의 반복", () => T(PlaceTable) != null && T(PlaceTable + "/PlaceMarker") != null,
+                "놓을 작업대 만들기", () => Ch6_Carry.Marker(Ch6_Carry.Table(T(Area), "PlaceTable", new Vector3(0.8f, 0f, 0.45f)))).Hier(Area, "오른쪽 [놓을 작업대 만들기] 버튼"));
+
+            s = new Step { title = "상자", goal = "양팔로 끼워 들 상자를 만든다",
+                concept = "상자 0.30 × 0.20 × 0.20 · 1kg. 손이 없어서 두 아래팔로 양옆을 조여 마찰로 든다.\n" +
+                          "실측(받침대를 치워 봄): 너비 0.26~0.34 · 1~2kg 을 조이면 버틴다. 조이지 않으면 떨어진다 — 붙잡는 힘은 마찰뿐.\n" +
+                          "Carry Box 스크립트가 어느 아래팔이 닿았는지 기록하고 색으로 보여 준다 (주황 그대로 · 노랑 잡음 · 초록 들어 올림).\n" +
+                          "상자를 붙이거나 옮기는 코드는 어디에도 없다.",
+                solve = () => Ch6_Carry.Box(T(Area)) };
+            s.Do("HumanoidArea 아래에 Cube, 이름 Box · Position (0, 1.16, 0.45) · Scale (0.3, 0.2, 0.2)", () => ChildOf(BoxPath, Area) && LocalPos(BoxPath, new Vector3(0f, 1.16f, 0.45f)) && Near(T(BoxPath).localScale, new Vector3(0.3f, 0.2f, 0.2f))).Insp(BoxPath, typeof(Transform), "Position · Scale");
+            s.Do("Add Component > Rigidbody, Mass 1", () => Has<Rigidbody>(BoxPath) && Near(Get<Rigidbody>(BoxPath).mass, 1f)).Insp(BoxPath, typeof(Rigidbody), "Mass");
+            ch.steps.Add(s.Do("Add Component > Carry Box", () => Has<CarryBox>(BoxPath)).Insp(BoxPath, typeof(CarryBox), "Add Component ▸ Carry Box"));
+
+            ch.steps.Add(new Step { title = "실습 6-1  어느 팔이 닿았나", blank = "6-1",
+                goal = "상자에 닿은 것이 왼 · 오른 아래팔인지 기록한다",
+                concept = "CarryBox.Touch(part, down) — 상자가 무언가와 닿아 있는 동안(OnCollisionStay) down = true, 떨어지면(OnCollisionExit) false 로 부른다.\n" +
+                          "part = 닿은 콜라이더의 이름. 몸 부품은 이름이 곧 GameObject 이름이다 (ForearmL · ForearmR · UpperArmL · Torso …).\n" +
+                          "쓸 수 있는 것: touchL · touchR (bool)   — Grasped = touchL && touchR 는 이미 있다\n\n" +
+                          "아래팔 두 개로 양쪽에서 조였을 때만 \"잡았다\"로 친다. 위팔 · 몸통으로 끼운 것까지 세면, 상자를 가슴에 대고 밀기만 해도 잡은 것이 된다.",
+                hints = new[] {
+                    "이름이 ForearmL 이면 왼쪽 기록을, ForearmR 이면 오른쪽 기록을 down 으로. 다른 이름은 그대로 둔다.",
+                    "① part == \"ForearmL\" → touchL = down\n② 아니고 part == \"ForearmR\" → touchR = down",
+                    "if (part == \"ForearmL\") touchL = down;\nelse if (part == \"ForearmR\") touchR = down;" },
+                skeleton = "if (part == ___) touchL = down;\nelse if (part == ___) ___ = down;",
+                explain = "true 를 넣을 때와 false 를 넣을 때를 나누지 않고 down 을 그대로 넣는다 — 닿으면 true, 떨어지면 false 가 저절로 된다.\n물리가 만든 접촉을 읽기만 한다. 잡을지 말지는 AI 의 팔이 정한다.",
+                answer = "if (part == \"ForearmL\") touchL = down;\nelse if (part == \"ForearmR\") touchR = down;" });
+
+            s = new Step { title = "옮기기 에이전트로 바꾸기", goal = "Gait Agent 를 Carry Agent 로 바꾸고 상자 · 작업대를 연결한다",
+                concept = "Carry Agent 는 Stand Agent 를 상속한다 — 관측 48 · 행동 18 · 넘어지면 끝은 그대로, 상자 · 놓을 자리 관측 17개와 보상이 더해진다 (관측 65).\n" +
+                          "RobotArms 5장과 같은 구조: 단계마다 \"지금 가야 할 점\"이 바뀐다.\n" +
+                          "  ① 두 아래팔을 상자 양옆으로  ② 잡고 들어 올린다  ③ 상자를 놓을 자리 위로  ④ 내려놓고 팔을 뗀다\n" +
+                          "보상: 그 단계의 최고 기록(가장 가까웠던 거리)을 갱신할 때만 다가간 만큼 · 잡기 0.3초 +1 · 들기 0.5초 +1 (판에 한 번) · 놓기 +3(판 끝)\n" +
+                          "      떨어뜨림 −1 · 넘어짐 −1 (판 끝) · 서 있는 동안 아주 조금(판 전체 0.9 이하)\n" +
+                          "Max Step 3000 (60초). 4~5장의 걷기 목표(Target)는 쓰지 않으니 지운다.",
+                solve = () => Ch6_Carry.Agent(T(Root)) };
+            s.Do("Humanoid 에 Add Component > Carry Agent", () => Has<CarryAgent>(Root)).Insp(Root, typeof(CarryAgent), "Add Component ▸ Carry Agent");
+            s.Do("Gait Agent 를 지운다 (⋮ > Remove Component)", () => T(Root) != null && T(Root).GetComponents<StandAgent>().Length == 1).Insp(Root, typeof(GaitAgent), "Gait Agent 의 ⋮ ▸ Remove Component");
+            s.Do("Box · Pick Table · Place Table · Place Marker 칸을 채운다", () => Has<CarryAgent>(Root) && Get<CarryAgent>(Root).box == Get<CarryBox>(BoxPath) && Get<CarryAgent>(Root).pickTable == T(PickTable) && Get<CarryAgent>(Root).placeTable == T(PlaceTable) && Get<CarryAgent>(Root).placeMarker != null).Insp(Root, typeof(CarryAgent), "Box · Pick Table · Place Table · Place Marker ← 끌어다 놓기");
+            s.Do("Push Interval 0 · Max Step 3000", () => Has<CarryAgent>(Root) && Get<CarryAgent>(Root).pushInterval == 0 && Get<CarryAgent>(Root).MaxStep == 3000).Insp(Root, typeof(CarryAgent), "Push Interval · Max Step");
+            s.Do("Behavior Name: HumanoidCarry · Space Size: 65", () => Brain != null && Brain.BehaviorName == "HumanoidCarry" && Brain.BrainParameters.VectorObservationSize == 65).Insp(Root, typeof(BehaviorParameters), "Behavior Name · Space Size");
+            ch.steps.Add(s.Do("걷기 목표 Target 을 지운다", () => T(Target) == null).Hier(Target, "우클릭 ▸ Delete"));
+
+            ch.steps.Add(new Step { title = "실습 6-2  정말 놓였나", blank = "6-2",
+                goal = "상자가 놓을 자리 위에 0.5초 동안 가만히 놓여 있을 때만 성공으로 친다",
+                concept = "CarryAgent.Placed() — 매 스텝 부른다. true 를 돌려주면 놓기 성공(+3)으로 판이 끝난다.\n" +
+                          "네 가지를 모두 만족하는 스텝이 25번(0.5초) 이어져야 성공이다:\n" +
+                          "  자리 안     상자와 PlaceSpot 의 수평 거리 < PlaceRadius (0.15)        Flat(v) = v 에서 높이를 뺀 것\n" +
+                          "  작업대 위   상자 높이와 PlaceSpot.y 의 차 < 0.03\n" +
+                          "  멈춤       box.rb.linearVelocity 크기 < 0.1\n" +
+                          "  팔 뗌      box.touchL · box.touchR 둘 다 false\n" +
+                          "쓸 수 있는 것: box (CarryBox) · PlaceSpot · PlaceRadius · Flat(…) · _restSteps (이어진 스텝 수)\n\n" +
+                          "\"목표에 닿았다\"로 성공을 주면: 들고 자리 위에 서 있기 · 던져서 굴러가며 지나가기 · 꼭 쥔 채 작업대에 대기만 해도 성공이 된다 (보상 편법).",
+                hints = new[] {
+                    "네 조건을 각각 bool 로 만들고, 모두 참이면 _restSteps 를 1 늘리고 하나라도 거짓이면 0 으로. 25 이상이면 true.",
+                    "① p = 상자 위치\n② onSpot = 수평 거리 < PlaceRadius && 높이 차 < 0.03\n③ still = 속도 < 0.1   ④ released = 두 팔 다 안 닿음\n⑤ _restSteps = 넷 다 참 ? +1 : 0   ⑥ return _restSteps >= 25",
+                    "bool onSpot = Flat(p - PlaceSpot).magnitude < PlaceRadius && Mathf.Abs(p.y - PlaceSpot.y) < 0.03f;\nbool still = box.rb.linearVelocity.magnitude < 0.1f;\nbool released = !box.touchL && !box.touchR;\n_restSteps = onSpot && still && released ? _restSteps + 1 : 0;" },
+                skeleton = "Vector3 p = box.transform.position;\nbool onSpot = Flat(p - ___).magnitude < ___ && Mathf.Abs(p.y - PlaceSpot.y) < 0.03f;\nbool still = box.rb.linearVelocity.___ < 0.1f;\nbool released = !box.___ && !box.___;\n_restSteps = onSpot && still && released ? _restSteps + 1 : ___;\nreturn _restSteps >= ___;",
+                explain = "조건이 한 스텝이라도 깨지면 0 부터 다시 센다 — \"0.5초 동안 계속\" 이 그래서 된다.\n높이 조건이 없으면 상자를 든 채 자리 위에 서 있어도, 멈춤 조건이 없으면 굴러가며 지나가도 성공이 된다.",
+                answer = "Vector3 p = box.transform.position;\nbool onSpot = Flat(p - PlaceSpot).magnitude < PlaceRadius && Mathf.Abs(p.y - PlaceSpot.y) < 0.03f;\nbool still = box.rb.linearVelocity.magnitude < 0.1f;\nbool released = !box.touchL && !box.touchR;\n_restSteps = onSpot && still && released ? _restSteps + 1 : 0;\nreturn _restSteps >= 25;" });
+
+            ch.steps.Add(new Step { title = "실습 6-3  성공률로 난이도 올리기", blank = "6-3",
+                goal = "최근 20판 중 14판 이상 성공하면 다음 난이도로 올린다",
+                concept = "CarryAgent.LevelUp(success) — 판이 끝날 때마다 그 판의 성공 여부를 넣어 부른다.\n" +
+                          "난이도(Levels): 0 = 상자가 몸 바로 앞 0.45m · 놓을 자리 0.8m 옆 (걷지 않고 팔이 닿는다)\n" +
+                          "                1 = 1.0m · ±30° · 1.2m    2 = 2.0m · ±90° · 2.0m    3 = 3.5m · 사방 · 3.0m\n" +
+                          "쓸 수 있는 것: _recent (Queue<bool>, 최근 판들의 성공 여부) · level · autoLevel · Levels.Length\n\n" +
+                          "왜 yaml 커리큘럼(5장)을 안 쓰나? yaml 은 보상 크기로만 단계를 넘긴다. 처음 학습에서 성공 0 인데도 보상이 기준을 넘어\n" +
+                          "단계가 올라갔고, 걷지도 못하는 몸에 2m 떨어진 상자가 주어져 넘어짐 99% 가 됐다 (실측). 진짜 목표(성공)로 정한다.",
+                hints = new[] {
+                    "최근 20개만 들고 있는 줄을 생각한다: 넣고, 20개를 넘으면 가장 오래된 것을 뺀다. 20개가 찼을 때 성공이 14개 이상이면 올린다.",
+                    "① _recent.Enqueue(success), 20 넘으면 Dequeue\n② 끔 · 마지막 단계 · 20개 안 됨이면 return\n③ 성공 수 n 을 센다 — 14 미만이면 return\n④ level++, _recent.Clear()",
+                    "if (!autoLevel || level >= Levels.Length - 1 || _recent.Count < 20) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n < 14) return;\nlevel++;\n_recent.Clear();" },
+                skeleton = "_recent.Enqueue(success);\nif (_recent.Count > ___) _recent.Dequeue();\nif (!autoLevel || level >= Levels.Length - 1 || _recent.Count < ___) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n < ___) return;\nlevel++;\n_recent.___();",
+                explain = "올린 뒤 줄을 비우지 않으면, 새 단계에서 처음 한 판만 성공해도 이전 단계의 성공 기록 때문에 또 오른다.\n에이전트(영역)마다 따로 센다 — 잘하는 영역부터 먼저 어려워진다. TensorBoard 의 Carry/Level 이 평균 난이도다.",
+                answer = "_recent.Enqueue(success);\nif (_recent.Count > 20) _recent.Dequeue();\nif (!autoLevel || level >= Levels.Length - 1 || _recent.Count < 20) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n < 14) return;\nlevel++;\n_recent.Clear();" });
+
+            s = new Step { title = "병렬 학습", goal = "학습 영역을 9개로 복제한다",
+                concept = "5장과 같다. 작업대 · 상자도 HumanoidArea 안에 있어서 같이 복제된다 — 1장에서 모든 것을 한 영역에 담은 이유.\n" +
+                          "빌드해서 --num-envs=3 으로 띄우면 9 × 3 = 에이전트 27개.",
+                solve = () => EditorApplication.ExecuteMenuItem("Humanoid/5. 학습 영역 9개로 복제") };
+            ch.steps.Add(s.Do("학습 영역을 9개로 만든다", () => GameObject.Find(Area + " 8") != null, "9개로 복제", () => EditorApplication.ExecuteMenuItem("Humanoid/5. 학습 영역 9개로 복제")).Hier(Area, "오른쪽 [9개로 복제] 버튼"));
+
+            s = new Step { title = "학습하기", goal = "걸어가서 집어 옮겨 놓기를 학습한다",
+                concept = "humanoid_carry_config.yaml — 걷기와 같은 신경망 · 3000만 스텝. 처음부터 학습한다(관측 수가 달라 5장 모델을 이어 쓸 수 없다).\n" +
+                          "File > Build Profiles 로 빌드한 뒤:\n  mlagents-learn Assets/Humanoid/humanoid_carry_config.yaml --run-id=carry --env=<빌드>.exe --no-graphics --num-envs=3\n\n" +
+                          "TensorBoard 에서 볼 것: Carry/Grasped → Carry/Lifted → Carry/Success 가 차례로 오르는가, Carry/Level, Carry/Dropped · Carry/Fell.\n\n" +
+                          "(학습 진행 중 — 결과가 나오면 채운다)",
+                hint = "잡기만 오르고 들기가 0 이면 들기 단계 보상(LiftWeight)을, 아무것도 안 잡고 서 있기만 하면 서기 보상(Stand Reward)이 너무 큰지 본다." };
+            s.Do("yaml 을 열어 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_carry_config.yaml"));
+            s.Do("빌드한다 (씬 하나만 넣는다)");
+            s.Do("학습 명령을 복사해 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_carry_config.yaml --run-id=carry --env=Build/Humanoid.exe --no-graphics --num-envs=3"));
+            ch.steps.Add(s.Do("TensorBoard 에서 Carry/… 지표를 본다"));
+
+            s = new Step { title = "평가", goal = "학습된 모델을 성공률 · 잡기 · 배치 오차 · 떨어뜨림 · 넘어짐으로 평가한다",
+                concept = "메뉴 Humanoid > 집어서 옮기기 평가 — 같은 씨앗으로 20판을 돌려 성적표를 찍는다. Carry Agent 의 Auto Level 을 끄고 Level 을 골라 단계별로 잰다.\n" +
+                          "보는 것: 성공률 · 잡기 · 들기 · 떨어뜨림 · 넘어짐 · 시간 초과 · 배치 오차(성공한 판의 상자 ↔ 자리 거리) · 걸린 시간 · 몸통 기울기.\n" +
+                          "놓을 자리 원판의 색 = 지난 판 결과: 초록 성공 · 빨강 떨어뜨림 · 주황 넘어짐 · 회색 시간 초과.\n\n" +
+                          "(학습 진행 중 — 결과가 나오면 채운다)",
+                done = "휴머노이드 트랙 끝! 걷고, 걸어가서 집고, 옮겨 놓는 정책까지 만들고 성공률로 평가했다." };
+            s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼");
+            s.Do("Model 칸에 학습된 .onnx 를 넣고 Inference Only 로", () => Brain != null && Brain.Model != null && IsBehavior(BehaviorType.InferenceOnly), "Inference Only", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Model · Behavior Type");
+            PlayStep(s);
+            s.Do("집어서 옮기기 평가를 실행해 성적표를 적는다", null, "평가 실행", () => EditorApplication.ExecuteMenuItem("Humanoid/집어서 옮기기 평가 (Play 중 · 20판)"));
+            ch.steps.Add(StopStep(s));
 
             return list;
         }

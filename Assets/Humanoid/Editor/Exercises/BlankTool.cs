@@ -31,6 +31,9 @@ namespace HumanoidEditor
             { "5-2", ("WalkAgent.cs", "void ReadCurriculum(") },
             { "5-3", ("GaitAgent.cs", "float Touchdown(") },
             { "5-4", ("GaitAgent.cs", "float StepReward(") },
+            { "6-1", ("CarryBox.cs", "void Touch(") },
+            { "6-2", ("CarryAgent.cs", "bool Placed(") },
+            { "6-3", ("CarryAgent.cs", "void LevelUp(") },
         };
 
         public static string PathOf(string id) => Scripts + Member[id].file;

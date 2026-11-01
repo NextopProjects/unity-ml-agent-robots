@@ -35,13 +35,15 @@ namespace HumanoidEditor
 
         // ── 테스트용 몸 ─────────────────────────────────────────────
 
-        // 임시 씬에 1장과 같은 몸을 만든다. kind: 0 = 몸만, 1 = 서기 에이전트, 2 = 걷기 에이전트, 3 = 자연스럽게 걷기 에이전트. 끝나면 통째로 지운다.
+        // 임시 씬에 1장과 같은 몸을 만든다. kind: 0 = 몸만, 1 = 서기 에이전트, 2 = 걷기 에이전트, 3 = 자연스럽게 걷기 에이전트, 4 = 옮기기 에이전트(상자 · 작업대 포함). 끝나면 통째로 지운다.
         sealed class Fix : IDisposable
         {
             public HumanoidBody body;
             public StandAgent agent;
             public WalkAgent walk;
             public GaitAgent gait;
+            public CarryAgent carry;
+            public CarryBox box;
             public KeyboardControl keyboard;
             public Transform target;
             readonly Scene _scene, _prev;
@@ -85,14 +87,23 @@ namespace HumanoidEditor
                 Call(body, "Awake");                            // 에디트 모드라 Unity 가 부르지 않는다
                 if (keyboard != null) Call(keyboard, "Start");
 
+                if (kind == 4)
+                {
+                    Ch6_Carry.Table(area.transform, "PickTable", new Vector3(0f, 0f, 0.45f));
+                    Ch6_Carry.Marker(Ch6_Carry.Table(area.transform, "PlaceTable", new Vector3(0.8f, 0f, 0.45f)));
+                    box = Ch6_Carry.Box(area.transform);
+                    Call(box, "Awake");                         // 에디트 모드라 Unity 가 부르지 않는다
+                }
+
                 if (kind > 0)
                 {
-                    agent = kind == 3 ? Undo.AddComponent<GaitAgent>(root) : kind == 2 ? (StandAgent)Undo.AddComponent<WalkAgent>(root) : Undo.AddComponent<StandAgent>(root);
+                    agent = kind == 4 ? Undo.AddComponent<CarryAgent>(root) : kind == 3 ? Undo.AddComponent<GaitAgent>(root) : kind == 2 ? (StandAgent)Undo.AddComponent<WalkAgent>(root) : Undo.AddComponent<StandAgent>(root);
                     walk = agent as WalkAgent;
                     gait = agent as GaitAgent;
+                    carry = agent as CarryAgent;
                     var bp = root.GetComponent<BehaviorParameters>();
                     bp.BehaviorName = "Test";
-                    bp.BrainParameters.VectorObservationSize = kind >= 2 ? 51 : 48;
+                    bp.BrainParameters.VectorObservationSize = kind == 4 ? 65 : kind >= 2 ? 51 : 48;
                     bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(18);
                     bp.BehaviorType = BehaviorType.HeuristicOnly;
                     agent.pushInterval = 0;
@@ -104,6 +115,12 @@ namespace HumanoidEditor
                         target.localPosition = new Vector3(0f, 0.25f, 6f);
                         walk.target = target;
                         walk.targetSpeed = 1f;
+                    }
+                    if (carry != null)
+                    {
+                        carry.box = box;
+                        carry.pickTable = area.transform.Find("PickTable");
+                        carry.placeTable = area.transform.Find("PlaceTable");
                     }
                     if (academy) agent.LazyInitialize();         // EndEpisode · StatsRecorder 를 쓰려면 ML-Agents 가 준비돼 있어야 한다
                     else agent.Initialize();
@@ -334,6 +351,64 @@ namespace HumanoidEditor
                 ("행동 변화 1 → 0.5", () => { using (var f = new Fix(3)) { Move(f); Set(f.gait, "_actionChange", 1f); return (0.5f, (float)Call(f.gait, "StepReward")); } }));
             Add("5-4", "발을 디딘 순간 점수를 더한다", "r += airTimeWeight * (Touchdown(0, 왼발) + Touchdown(1, 오른발)). 곱한 뒤에 더한다 — 서 있어도 걸음 점수는 받는다.",
                 ("서서 왼발을 0.45초 들었다 디딤 → 5 × 0.2 = 1", () => { using (var f = new Fix(3)) { Air(f)[0] = 0.45f; f.body.footL.touchingGround = true; return (1f, (float)Call(f.gait, "StepReward")); } }));
+
+            // ── 6-1 CarryBox.Touch ──
+            Add("6-1", "왼 아래팔이 닿으면 touchL", "part 가 \"ForearmL\" 이면 touchL = down.",
+                ("ForearmL 닿음 → touchL 예", () => { using (var f = new Fix(4)) { Call(f.box, "Touch", "ForearmL", true); return (true, f.box.touchL); } }));
+            Add("6-1", "오른 아래팔이 닿으면 touchR", "part 가 \"ForearmR\" 이면 touchR = down.",
+                ("ForearmR 닿음 → touchR 예", () => { using (var f = new Fix(4)) { Call(f.box, "Touch", "ForearmR", true); return (true, f.box.touchR); } }),
+                ("양쪽 다 닿음 → 잡음(Grasped) 예", () => { using (var f = new Fix(4)) { Call(f.box, "Touch", "ForearmL", true); Call(f.box, "Touch", "ForearmR", true); return (true, f.box.Grasped); } }));
+            Add("6-1", "떨어지면 지운다", "down 이 false 로 오면(OnCollisionExit) 그 팔의 기록을 false 로.",
+                ("닿았다 떨어짐 → touchL 아니오", () => { using (var f = new Fix(4)) { Call(f.box, "Touch", "ForearmL", true); Call(f.box, "Touch", "ForearmL", false); return (false, f.box.touchL); } }));
+            Add("6-1", "아래팔이 아니면 세지 않는다", "다른 이름(위팔 · 몸통 · 작업대)은 아무것도 바꾸지 않는다. 위팔로 끼워도 '잡음'이 되면 안 된다.",
+                ("UpperArmL · Torso 닿음 (경계) → 잡음 아니오", () => { using (var f = new Fix(4)) { Call(f.box, "Touch", "UpperArmL", true); Call(f.box, "Touch", "Torso", true); return (false, f.box.touchL || f.box.touchR); } }));
+
+            // ── 6-2 CarryAgent.Placed ──
+            Add("6-2", "놓을 자리 위에 0.5초 멈춰 있으면 성공", "자리 안 · 작업대 위 · 멈춤 · 팔 뗌을 모두 만족하는 스텝을 _restSteps 로 세고, 25 이상이면 true.",
+                ("자리 위 · 멈춤 · 팔 뗌 25스텝 → 성공", () => { using (var f = new Fix(4)) return (true, Rest(f, Vector3.zero, Vector3.zero, false, 25)); }),
+                ("24스텝 (경계: 0.48초) → 아직", () => { using (var f = new Fix(4)) return (false, Rest(f, Vector3.zero, Vector3.zero, false, 24)); }));
+            Add("6-2", "놓을 자리 15cm 안이어야 한다", "상자와 PlaceSpot 의 수평 거리 < PlaceRadius(0.15).",
+                ("자리에서 0.2m 옆 → 실패", () => { using (var f = new Fix(4)) return (false, Rest(f, new Vector3(0.2f, 0f, 0f), Vector3.zero, false, 30)); }));
+            Add("6-2", "작업대 위에 놓여 있어야 한다", "상자 높이가 PlaceSpot.y 와 0.03 안. 들고 자리 위에 서 있기만 하면 성공이 아니다.",
+                ("자리 위 공중 0.1m → 실패", () => { using (var f = new Fix(4)) return (false, Rest(f, new Vector3(0f, 0.1f, 0f), Vector3.zero, false, 30)); }));
+            Add("6-2", "멈춰 있어야 한다", "상자 속도 < 0.1. 굴러가는 중에 지나가면 성공이 아니다.",
+                ("0.5 m/s 로 미끄러지는 중 → 실패", () => { using (var f = new Fix(4)) return (false, Rest(f, Vector3.zero, new Vector3(0.5f, 0f, 0f), false, 30)); }));
+            Add("6-2", "팔을 떼야 한다", "box.touchL · touchR 둘 다 false. 아직 잡고 있으면 놓은 것이 아니다.",
+                ("팔이 닿아 있음 → 실패", () => { using (var f = new Fix(4)) return (false, Rest(f, Vector3.zero, Vector3.zero, true, 30)); }));
+
+            // ── 6-3 CarryAgent.LevelUp ──
+            Add("6-3", "최근 20판 중 14판(70%) 성공이면 한 단계 올린다", "_recent 에 넣고 20개를 넘으면 오래된 것을 뺀다. 20개가 찼고 성공이 14 이상이면 level++.",
+                ("성공 14 · 실패 6 → 난이도 1", () => { using (var f = new Fix(4)) return (1f, (float)Levels(f, 14, 6)); }),
+                ("성공 13 · 실패 7 (경계) → 그대로 0", () => { using (var f = new Fix(4)) return (0f, (float)Levels(f, 13, 7)); }));
+            Add("6-3", "20판이 쌓이기 전에는 올리지 않는다", "_recent.Count < 20 이면 그대로.",
+                ("15판 모두 성공 → 그대로 0", () => { using (var f = new Fix(4)) return (0f, (float)Levels(f, 15, 0)); }));
+            Add("6-3", "올린 뒤에는 기록을 비운다", "level++ 다음에 _recent.Clear(). 안 비우면 새 단계에서 한 판만 성공해도 또 오른다.",
+                ("올린 뒤 19판 더 성공 → 1 그대로", () => { using (var f = new Fix(4)) { Levels(f, 20, 0); return (1f, (float)Levels(f, 19, 0)); } }));
+            Add("6-3", "끄거나 마지막 단계면 그대로", "autoLevel 이 false 이거나 level 이 마지막(Levels.Length - 1)이면 올리지 않는다.",
+                ("autoLevel 끔 → 그대로 0", () => { using (var f = new Fix(4)) { f.carry.autoLevel = false; return (0f, (float)Levels(f, 20, 0)); } }),
+                ("마지막 단계 3 (경계) → 3 그대로", () => { using (var f = new Fix(4)) { f.carry.level = 3; return (3f, (float)Levels(f, 20, 0)); } }));
+        }
+
+        // 6-2: 상자를 놓을 자리(+offset)에 두고 Placed 를 steps 번 부른다. 마지막 결과를 돌려준다
+        static bool Rest(Fix f, Vector3 offset, Vector3 velocity, bool touching, int steps)
+        {
+            var place = f.carry.placeTable.position;
+            f.box.transform.position = new Vector3(place.x, 1.16f, place.z) + offset;
+            f.box.rb.position = f.box.transform.position;
+            f.box.rb.linearVelocity = velocity;
+            f.box.touchL = f.box.touchR = touching;
+            Physics.SyncTransforms();
+            bool placed = false;
+            for (int i = 0; i < steps; i++) placed = (bool)Call(f.carry, "Placed");
+            return placed;
+        }
+
+        // 6-3: 성공 wins 번 · 실패 losses 번을 차례로 넣고 난이도를 돌려준다
+        static int Levels(Fix f, int wins, int losses)
+        {
+            for (int i = 0; i < wins; i++) Call(f.carry, "LevelUp", true);
+            for (int i = 0; i < losses; i++) Call(f.carry, "LevelUp", false);
+            return f.carry.level;
         }
 
         // 5-3 · 5-4 도우미

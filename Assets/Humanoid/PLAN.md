@@ -26,6 +26,7 @@ Unity ML-Agents 실습 프로젝트. `RobotArms` 다음 트랙이다.
 | 3 | [03-서기-학습.md](Docs/03-서기-학습.md) | **밀려도 버티기** ★ | **도입** | 48 | 연속 18 | 3-1 ~ 3-3 |
 | 4 | [04-걷기-보상.md](Docs/04-걷기-보상.md) | **목표를 향해 걷기** ★ 최종 과제 | O | 51 | 연속 18 | 4-1 ~ 4-3 |
 | 5 | [05-학습과-평가.md](Docs/05-학습과-평가.md) | **자연스럽게 걷기** — 걸음 진단 · 걸음 보상(GaitAgent) · 방향 · 속도 커리큘럼 · 병렬 학습 · 같은 조건 평가 | O | 51 | 연속 18 | 5-1 ~ 5-4 |
+| 6 | [06-집어서-옮기기.md](Docs/06-집어서-옮기기.md) | **걸어가서 상자를 양팔로 집어 무작위 작업대에 놓기** — 물리 파지 · 단계 보상 · 성공률 난이도 | O | 65 | 연속 18 | 6-1 ~ 6-3 |
 
 > **4장에서 최종 과제가 완성된다.** 5장은 그 걸음이 왜 이상한지(숙임 · 발 끌기 · 떨림) 숫자로 진단하고, 보상과 학습 순서를 고쳐 같은 조건으로 다시 재는 장이다.
 
@@ -56,6 +57,7 @@ Assets/Humanoid/
 ├── Docs/01 ~ 05                    장별 문서
 ├── humanoid_config.yaml            [3~4장] 학습 설정 (HumanoidStand · HumanoidWalk)
 ├── humanoid_gait_config.yaml       [5장]   학습 설정 (HumanoidGait · 보상 세기 · 방향 · 속도 커리큘럼)
+├── humanoid_carry_config.yaml      [6장]   학습 설정 (HumanoidCarry · 3000만 스텝, 난이도는 CarryAgent 안)
 ├── Scenes/Humanoid.unity           빈 실습 씬 (학습자가 여기서 만든다)
 ├── Scenes/Humanoid_Answer.unity    정답 씬 (장별 메뉴로 만든 4장 상태)
 ├── Materials/
@@ -67,12 +69,16 @@ Assets/Humanoid/
 │   ├── KeyboardControl.cs          [2장]   키보드 → 행동 18 · 화면 표시
 │   ├── StandAgent.cs               [3장]   서기 에이전트 (관측 48)
 │   ├── WalkAgent.cs                [4~5장] 걷기 에이전트 (StandAgent 상속, 관측 51 · 성적 기록 · 목표 방향 범위)
-│   └── GaitAgent.cs                [5장]   자연스럽게 걷기 (WalkAgent 상속, 걸음 보상 · 모터 힘 상한)
+│   ├── GaitAgent.cs                [5장]   자연스럽게 걷기 (WalkAgent 상속, 걸음 보상 · 모터 힘 상한)
+│   ├── CarryBox.cs                 [6장]   옮길 상자 (어느 아래팔이 닿았나 · 상태 색)
+│   └── CarryAgent.cs               [6장]   집어서 옮기기 (StandAgent 상속, 관측 65 · 단계 보상 · 성공률 난이도)
 └── Editor/
     ├── HumanoidBuild.cs            메뉴들이 같이 쓰는 것 (영역 이름 · 찾기 · 머티리얼)
     ├── HumanoidPackageExporter.cs  유니티 패키지로 내보내기
     ├── Ch1_Body.cs ~ Ch5_Parallel.cs   장별 정답 씬 메뉴 + 튜토리얼 [대신 해주기]가 쓰는 조각 (Ch5_Gait = 걷기 에이전트 바꾸기)
     ├── GaitEvaluation.cs           걸음걸이 평가 메뉴 (Play 중 · 같은 씨앗 · 120초 → 성적표)
+    ├── Ch6_Carry.cs                작업대 · 상자 · 옮기기 에이전트 (메뉴 + [대신 해주기] 조각)
+    ├── CarryEvaluation.cs          집어서 옮기기 평가 메뉴 (Play 중 · 20판 → 성공률 · 잡기 · 배치 오차 …)
     ├── Tutorial/
     │   ├── TutorialWindow.cs       튜토리얼 창 (목표 · 할 일 · 자동 확인 · 코드 실습 · 진행 저장)
     │   ├── TutorialGuide.cs        위치 안내 (Hierarchy 줄 · Scene 상자 · Project 줄 하이라이트, [📍 여기 보기])
@@ -93,6 +99,8 @@ Assets/Humanoid/
 | `Humanoid > 5. 자연스럽게 걷기 에이전트로 바꾸기` | 5 |
 | `Humanoid > 5. 학습 영역 9개로 복제` / `학습 영역 1개로` | 5 |
 | `Humanoid > 걸음걸이 평가 (Play 중 · 120초)` — 지금 모델의 걸음 성적표 | 5 |
+| `Humanoid > 6. 집어서 옮기기 환경 만들기` | 6 |
+| `Humanoid > 집어서 옮기기 평가 (Play 중 · 20판)` | 6 |
 | **`Humanoid > 튜토리얼 열기`** (Ctrl+Shift+H) — 장·단계를 안내하고, 코드 실습의 시작 · 힌트 · 테스트를 돕는다 | 1~5 |
 | `Humanoid > 튜토리얼 진행 초기화` | - |
 | `Humanoid > 개발자 > 자동 완성 버튼 보이기 (강사용)` — 켜면 창에 [⚡ 이 단계 / 이 장 전체 자동 완성]. 기본 숨김 | - |
@@ -104,7 +112,7 @@ Assets/Humanoid/
 
 | 담는 것 | 빼는 것 |
 |---|---|
-| `Docs` · `Editor` · `Materials` · `Scenes`(빈 실습 씬 + 정답 씬) · `Scripts` 폴더, `humanoid_config.yaml` · `humanoid_gait_config.yaml` · `PLAN.md` | 그 밖의 모든 것 (`results/` 학습 결과 등) · 담는 폴더 안의 학습 결과 파일 `.onnx` · `.pt` · `.nn` · `.json` |
+| `Docs` · `Editor` · `Materials` · `Scenes`(빈 실습 씬 + 정답 씬) · `Scripts` 폴더, `humanoid_config.yaml` · `humanoid_gait_config.yaml` · `humanoid_carry_config.yaml` · `PLAN.md` | 그 밖의 모든 것 (`results/` 학습 결과 등) · 담는 폴더 안의 학습 결과 파일 `.onnx` · `.pt` · `.nn` · `.json` |
 
 미리 학습해 둔 모델은 `Assets/Humanoid/results/HumanoidStand.onnx`(서기, 400만 스텝) · `HumanoidWalk.onnx`(걷기, 1000만 스텝) · `HumanoidGait.onnx`(자연스럽게 걷기, 1000만 스텝 · 힘 상한 300 · 판 길이 상한 없음)에 있다. 패키지에는 담지 않는다.
 
@@ -144,6 +152,9 @@ Assets/Humanoid/
 | 5 | 5-2 | `WalkAgent.ReadCurriculum` | 처음부터 | 커리큘럼 파라미터 (속도 · 방향) | 3 · 5 |
 | 5 | 5-3 | `GaitAgent.Touchdown` | 처음부터 | 발 체공 시간 → 걸음 점수 | 4 · 6 |
 | 5 | 5-4 | `GaitAgent.StepReward` | 기능 추가 | 걸음 보상 (깎기 셋 · 더하기 하나) | 5 · 6 |
+| 6 | 6-1 | `CarryBox.Touch` | 처음부터 | 물리 접촉 읽기 (아래팔만) | 4 · 5 |
+| 6 | 6-2 | `CarryAgent.Placed` | 처음부터 | 성공 판정 (자리 · 높이 · 멈춤 · 손 뗌) | 5 · 6 |
+| 6 | 6-3 | `CarryAgent.LevelUp` | 처음부터 | 성공률 난이도 | 4 · 6 |
 
 학습 흐름 (튜토리얼 창의 코드 단계):
 
@@ -160,8 +171,8 @@ Assets/Humanoid/
 - **저장소에는 정답이 든 채로 둔다.** 1장 첫 단계 [실습 씬 열기]가 아직 시작 안 한 실습을 전부 시작 코드로 바꾼다 (앞 실습의 답이 미리 보이지 않게).
 - 진행 상태(EditorPrefs)는 프로젝트마다 따로 저장한다 (`Humanoid.Tutorial.<프로젝트 id>.…`).
 
-검증(개발자): `개발자 > 모든 실습 시작 코드로` → `전체 채점`이면 **모든 실습이 하나 이상 실패**하고 (실측 55 / 71 실패),
-`모든 정답 되돌리기` → `전체 채점`이면 **전부 통과**하고 스크립트가 원래와 같아진다 (71 / 71). 실습을 추가 · 수정하면 둘 다 다시 확인한다.
+검증(개발자): `개발자 > 모든 실습 시작 코드로` → `전체 채점`이면 **모든 실습이 하나 이상 실패**하고 (실측 61 / 88 실패),
+`모든 정답 되돌리기` → `전체 채점`이면 **전부 통과**하고 스크립트가 원래와 같아진다 (88 / 88). 실습을 추가 · 수정하면 둘 다 다시 확인한다.
 
 ---
 
