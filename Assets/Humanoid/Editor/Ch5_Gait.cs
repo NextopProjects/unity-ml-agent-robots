@@ -19,12 +19,12 @@ namespace HumanoidEditor
             if (walk == null) { Debug.LogError("[Humanoid] 먼저 4장 메뉴를 실행하세요."); return; }
             if (walk is GaitAgent) return;
 
-            // 새 Agent 를 먼저 붙이고 옛 것을 지운다 (DecisionRequester 가 Agent 를 요구한다). 목표 · 속도 · 판 길이는 그대로 옮긴다.
+            // 새 Agent 를 먼저 붙이고 옛 것을 지운다 (DecisionRequester 가 Agent 를 요구한다). 목표 · 속도는 그대로 옮긴다.
             var gait = Undo.AddComponent<GaitAgent>(go);
             gait.target = walk.target;
             gait.targetSpeed = walk.targetSpeed;
             gait.pushInterval = walk.pushInterval;
-            gait.MaxStep = walk.MaxStep;
+            gait.MaxStep = 0;       // 상한 없음: 판은 넘어짐 · 목표 제한시간으로만 끝난다. 목표를 맞히는 한 계속 걷는다
             Undo.DestroyObjectImmediate(walk);
 
             // 이름을 바꿔 4장 학습 결과와 따로 학습 · 기록한다. 관측 · 행동 수는 그대로(51 · 18)라 4장 모델도 넣어 볼 수 있다.

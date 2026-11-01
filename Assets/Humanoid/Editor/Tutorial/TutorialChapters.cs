@@ -808,12 +808,15 @@ namespace HumanoidEditor
                           "  Air Time Weight                       발을 들었다 디딘 순간 주는 점수의 세기\n" +
                           "  Max Joint Torque                      관절 모터 힘 상한 N·m. 기본 300 · 0 = 1~4장 그대로(사실상 무제한). 걷기에서만 바뀐다\n" +
                           "같은 이름이 yaml 의 environment_parameters 에 있으면 그 값을 쓴다 — 빌드를 다시 하지 않고 실험 조건을 바꾼다.\n\n" +
-                          "Behavior Name 을 HumanoidGait 로 바꿔 4장 학습과 따로 기록한다.",
+                          "Behavior Name 을 HumanoidGait 로 바꿔 4장 학습과 따로 기록한다.\n\n" +
+                          "Max Step 0 = 판 길이 상한 없음. 4장은 잘 걸어도 100초(5000)가 되면 판이 끝났다.\n" +
+                          "이제 판은 넘어지거나 목표 제한시간을 넘길 때만 끝난다 — 목표를 맞히는 한 계속 걷는다. 잘 걸을수록 오래 산다.\n" +
+                          "(판이 길어도 학습은 time_horizon(1000스텝)마다 끊어서 한다. 상한이 없어도 학습이 멈추지 않는다)",
                 solve = () => EditorApplication.ExecuteMenuItem("Humanoid/5. 자연스럽게 걷기 에이전트로 바꾸기") };
             s.Do("Humanoid 에 Add Component > Gait Agent", () => Has<GaitAgent>(Root)).Insp(Root, typeof(GaitAgent), "Add Component ▸ Gait Agent");
             s.Do("Walk Agent 를 지운다 (⋮ > Remove Component)", () => T(Root) != null && T(Root).GetComponents<StandAgent>().Length == 1).Insp(Root, typeof(WalkAgent), "Walk Agent 의 ⋮ ▸ Remove Component");
             s.Do("Gait Agent 의 Target 칸에 Target 을 끌어다 놓는다", () => Has<GaitAgent>(Root) && Get<GaitAgent>(Root).target == T(Target)).Insp(Root, typeof(GaitAgent), "Target ← Hierarchy 의 Target 을 끌어다 놓기");
-            s.Do("Push Interval 0 · Max Step 5000", () => Has<GaitAgent>(Root) && Get<GaitAgent>(Root).pushInterval == 0 && Get<GaitAgent>(Root).MaxStep == 5000).Insp(Root, typeof(GaitAgent), "Push Interval · Max Step");
+            s.Do("Push Interval 0 · Max Step 0 (상한 없음)", () => Has<GaitAgent>(Root) && Get<GaitAgent>(Root).pushInterval == 0 && Get<GaitAgent>(Root).MaxStep == 0).Insp(Root, typeof(GaitAgent), "Push Interval · Max Step");
             ch.steps.Add(s.Do("Behavior Name: HumanoidGait", () => Brain != null && Brain.BehaviorName == "HumanoidGait").Insp(Root, typeof(BehaviorParameters), "Behavior Name"));
 
             ch.steps.Add(new Step { title = "실습 5-3  발을 디딘 순간", blank = "5-3",
