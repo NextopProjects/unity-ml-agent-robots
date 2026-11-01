@@ -31,7 +31,30 @@ namespace Humanoid
 
         public void ResetPose()
         {
-            // 여기에 직접 구현한다.
+            transform.localPosition = _startPosition;
+            transform.localRotation = _startRotation;
+            rb.linearVelocity = Vector3.zero;      // 속도를 안 지우면 넘어지던 기세 그대로 다시 넘어진다
+            rb.angularVelocity = Vector3.zero;
+            touchingGround = false;
+        }
+
+        // 바닥에 닿은 점이 수평으로 미끄러지는 속도(m/s). 닿아 있지 않으면 0.
+        // 닿은 점 = 상자 바닥 네 모서리 중 가장 낮은 것. 부품 중심 속도로 재면 뒤꿈치→발끝으로 구르는 정상 동작도 미끄러짐으로 잡힌다.
+        public float SlipSpeed
+        {
+            get
+            {
+                if (!touchingGround) return 0f;
+                var box = GetComponent<BoxCollider>();
+                Vector3 lowest = transform.position;
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 corner = transform.TransformPoint(box.center + Vector3.Scale(box.size * 0.5f, new Vector3(i % 2 * 2 - 1, -1, i / 2 * 2 - 1)));
+                    if (i == 0 || corner.y < lowest.y) lowest = corner;
+                }
+                Vector3 v = rb.GetPointVelocity(lowest);
+                return new Vector2(v.x, v.z).magnitude;
+            }
         }
 
         // Rigidbody가 없는 것(움직이지 않는 것) = 바닥으로 본다.
@@ -44,7 +67,7 @@ namespace Humanoid
         // 목표 각도(도)를 관절 모터에 넣는다. 모터가 이 각도로 당긴다.
         public void SetTarget(float x, float z)
         {
-            // 여기에 직접 구현한다.
+            joint.targetRotation = Quaternion.Euler(x, 0f, z);
         }
 
         // 지금 관절 각도(도). 오일러각은 무릎을 90도 가까이 접으면 뒤집히므로 쓰지 않고,

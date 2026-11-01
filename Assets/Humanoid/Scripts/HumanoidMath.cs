@@ -77,6 +77,21 @@ namespace Humanoid
             direction.y = 0f;
             return (Vector3.Dot(forward.normalized, direction.normalized) + 1f) * 0.5f;
         }
+
+        // ══ 자연스럽게 걷기 ══════════════════════════════════════════════
+
+        // 몸통이 서 있는 정도 (0~1). 똑바로 1 · 10도 0.95 · 30도 0.54 · 45도 넘으면 0.
+        public static float Upright(Vector3 up)
+        {
+            return Mathf.Clamp01((up.y - 0.7071f) / (1f - 0.7071f));
+        }
+
+        // 발이 땅에 닿는 순간의 점수: 떠 있던 시간 - 0.25초 (±0.25 로 자른다).
+        // 발을 0.25초보다 오래 들었다 내리면 +, 잠깐 떴다 닿기(질질 끌기 · 떨기)를 반복하면 -.
+        public static float AirTimeScore(float airTime)
+        {
+            return Mathf.Clamp(airTime - 0.25f, -0.25f, 0.25f);
+        }
     }
 
     // ══ 평가 ══════════════════════════════════════════════════════

@@ -35,12 +35,13 @@ namespace HumanoidEditor
 
         // ── 테스트용 몸 ─────────────────────────────────────────────
 
-        // 임시 씬에 1장과 같은 몸을 만든다. kind: 0 = 몸만, 1 = 서기 에이전트, 2 = 걷기 에이전트. 끝나면 통째로 지운다.
+        // 임시 씬에 1장과 같은 몸을 만든다. kind: 0 = 몸만, 1 = 서기 에이전트, 2 = 걷기 에이전트, 3 = 자연스럽게 걷기 에이전트. 끝나면 통째로 지운다.
         sealed class Fix : IDisposable
         {
             public HumanoidBody body;
             public StandAgent agent;
             public WalkAgent walk;
+            public GaitAgent gait;
             public KeyboardControl keyboard;
             public Transform target;
             readonly Scene _scene, _prev;
@@ -86,11 +87,12 @@ namespace HumanoidEditor
 
                 if (kind > 0)
                 {
-                    agent = kind == 2 ? (StandAgent)Undo.AddComponent<WalkAgent>(root) : Undo.AddComponent<StandAgent>(root);
+                    agent = kind == 3 ? Undo.AddComponent<GaitAgent>(root) : kind == 2 ? (StandAgent)Undo.AddComponent<WalkAgent>(root) : Undo.AddComponent<StandAgent>(root);
                     walk = agent as WalkAgent;
+                    gait = agent as GaitAgent;
                     var bp = root.GetComponent<BehaviorParameters>();
                     bp.BehaviorName = "Test";
-                    bp.BrainParameters.VectorObservationSize = kind == 2 ? 51 : 48;
+                    bp.BrainParameters.VectorObservationSize = kind >= 2 ? 51 : 48;
                     bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(18);
                     bp.BehaviorType = BehaviorType.HeuristicOnly;
                     agent.pushInterval = 0;
@@ -290,6 +292,11 @@ namespace HumanoidEditor
                 ("Walk/SpeedError = 속도 오차", () => Stat("Walk/SpeedError", 0.2f)),
                 ("Walk/FallRate = 넘어졌으면 1", () => Stat("Walk/FallRate", 1f)),
                 ("Walk/Targets = 닿은 수", () => Stat("Walk/Targets", 3f)));
+            Add("5-1", "걸음걸이 네 가지를 남긴다", "StatsRecorder.Add(\"Gait/…\", gait.…) 를 네 번 — Slip · StepBalance · Tilt · Jitter.",
+                ("Gait/Slip = 발 미끄러짐", () => Stat("Gait/Slip", 0.3f)),
+                ("Gait/StepBalance = 좌우 걸음 수 비", () => Stat("Gait/StepBalance", 0.8f)),
+                ("Gait/Tilt = 몸통 기울기", () => Stat("Gait/Tilt", 10f)),
+                ("Gait/Jitter = 떨림", () => Stat("Gait/Jitter", 50f)));
             Add("5-1", "기록이 없으면 남기지 않는다", "_speed.Count == 0 이면 return. 첫 판에 0 이 섞여 평균이 틀어지지 않게.",
                 ("첫 판 (경계) → 아무것도 안 남김", () => { using (var f = new Fix(2, academy: true)) { ClearStats(); Call(f.walk, "RecordStats"); return (0f, (float)SentStats().Count); } }));
 
@@ -297,9 +304,48 @@ namespace HumanoidEditor
             Add("5-2", "커리큘럼 값을 읽는다", "Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed) 를 targetSpeed 에 넣는다. 이름은 yaml 과 같게.",
                 ("커리큘럼 target_speed 1.5 → targetSpeed 1.5", () => { using (var f = new Fix(2, academy: true)) { Curriculum()["target_speed"] = () => 1.5f; Call(f.walk, "ReadCurriculum"); return (1.5f, f.walk.targetSpeed); } }),
                 ("단계가 0.5 → 1.0 으로 오름 → 다음 판은 1.0", () => { using (var f = new Fix(2, academy: true)) { Curriculum()["target_speed"] = () => 0.5f; Call(f.walk, "ReadCurriculum"); Curriculum()["target_speed"] = () => 1.0f; Call(f.walk, "ReadCurriculum"); return (1.0f, f.walk.targetSpeed); } }));
+            Add("5-2", "목표 방향 범위도 읽는다", "targetAngle = GetWithDefault(\"target_angle\", targetAngle). 이름은 yaml 과 같게.",
+                ("커리큘럼 target_angle 30 → targetAngle 30", () => { using (var f = new Fix(2, academy: true)) { Curriculum()["target_angle"] = () => 30f; Call(f.walk, "ReadCurriculum"); return (30f, f.walk.targetAngle); } }));
             Add("5-2", "없으면 지금 값 그대로", "기본값으로 지금 targetSpeed 를 준다. 0 같은 고정값을 주면 커리큘럼 없이 Play 할 때 멈춰 선다.",
-                ("커리큘럼 없음 (경계) → 1.2 그대로", () => { using (var f = new Fix(2, academy: true)) { f.walk.targetSpeed = 1.2f; Call(f.walk, "ReadCurriculum"); return (1.2f, f.walk.targetSpeed); } }));
+                ("커리큘럼 없음 (경계) → 1.2 그대로", () => { using (var f = new Fix(2, academy: true)) { f.walk.targetSpeed = 1.2f; Call(f.walk, "ReadCurriculum"); return (1.2f, f.walk.targetSpeed); } }),
+                ("커리큘럼 없음 (경계) → 방향 90 그대로", () => { using (var f = new Fix(2, academy: true)) { f.walk.targetAngle = 90f; Call(f.walk, "ReadCurriculum"); return (90f, f.walk.targetAngle); } }));
+
+            // ── 5-3 Touchdown ──
+            Add("5-3", "떠 있는 동안 시간을 잰다", "발이 바닥에 안 닿았으면 _air[i] += Time.fixedDeltaTime 하고 0 을 돌려준다.",
+                ("떠 있음 0.30초 → 한 스텝 뒤 0.32초", () => { using (var f = new Fix(3)) { Air(f)[0] = 0.3f; Touch(f, 0, false); return (0.32f, Air(f)[0]); } }));
+            Add("5-3", "닿는 순간 점수 = AirTimeScore(떠 있던 시간)", "닿았으면 떠 있던 시간을 꺼내 HumanoidMath.AirTimeScore(air) 를 돌려준다.",
+                ("0.45초 떴다 닿음 → +0.2", () => { using (var f = new Fix(3)) { Air(f)[0] = 0.45f; return (0.2f, Touch(f, 0, true)); } }),
+                ("0.15초 (짧은 종종걸음) → -0.1", () => { using (var f = new Fix(3)) { Air(f)[1] = 0.15f; return (-0.1f, Touch(f, 1, true)); } }));
+            Add("5-3", "닿으면 시간을 0 으로", "점수를 준 뒤 _air[i] = 0. 안 지우면 다음 걸음에 이전 시간이 더해진다.",
+                ("닿은 뒤 떠 있던 시간 → 0", () => { using (var f = new Fix(3)) { Air(f)[0] = 0.45f; Touch(f, 0, true); return (0f, Air(f)[0]); } }));
+            Add("5-3", "0.1초 안 되게 뜬 것은 걸음이 아니다", "air >= 0.1f 일 때만 점수. 판 시작 직후 · 접촉이 한 스텝 끊긴 것까지 벌점을 주지 않게.",
+                ("0.04초 (경계) → 0", () => { using (var f = new Fix(3)) { Air(f)[0] = 0.04f; return (0f, Touch(f, 0, true)); } }),
+                ("계속 닿아 있음 (경계) → 0", () => { using (var f = new Fix(3)) return (0f, Touch(f, 0, true)); }));
+
+            // ── 5-4 StepReward (자연스럽게 걷기) ──
+            Add("5-4", "걷기 점수는 그대로", "float r = base.StepReward(); 로 시작한다 — 목표 쪽 목표 속도 점수 · 도달 보너스가 거기 있다.",
+                ("바르게 서서 목표 쪽 1 m/s (경계) → 1", () => { using (var f = new Fix(3)) { Move(f); return (1f, (float)Call(f.gait, "StepReward")); } }));
+            Add("5-4", "몸통이 기운 만큼 깎는다", "r *= Mathf.Lerp(1f, HumanoidMath.Upright(몸통 up), uprightWeight).",
+                ("몸통 앞으로 30° → 0.54", () => { using (var f = new Fix(3)) { Move(f); Tilt(f, 30f); return (0.54f, (float)Call(f.gait, "StepReward")); } }),
+                ("uprightWeight 0 (경계) → 1", () => { using (var f = new Fix(3)) { Move(f); Tilt(f, 30f); f.gait.uprightWeight = 0f; return (1f, (float)Call(f.gait, "StepReward")); } }));
+            Add("5-4", "발이 미끄러진 만큼 깎는다", "r /= 1f + slipWeight * (왼발 SlipSpeed + 오른발 SlipSpeed). 닿지 않은 발은 SlipSpeed 가 0 이다.",
+                ("닿은 발이 1 m/s 로 미끄러짐 → 0.5", () => { using (var f = new Fix(3)) { Move(f); f.body.footL.touchingGround = true; return (0.5f, (float)Call(f.gait, "StepReward")); } }));
+            Add("5-4", "행동이 확 바뀐 만큼 깎는다", "r /= 1f + actionRateWeight * _actionChange.",
+                ("행동 변화 1 → 0.5", () => { using (var f = new Fix(3)) { Move(f); Set(f.gait, "_actionChange", 1f); return (0.5f, (float)Call(f.gait, "StepReward")); } }));
+            Add("5-4", "발을 디딘 순간 점수를 더한다", "r += airTimeWeight * (Touchdown(0, 왼발) + Touchdown(1, 오른발)). 곱한 뒤에 더한다 — 서 있어도 걸음 점수는 받는다.",
+                ("서서 왼발을 0.45초 들었다 디딤 → 5 × 0.2 = 1", () => { using (var f = new Fix(3)) { Air(f)[0] = 0.45f; f.body.footL.touchingGround = true; return (1f, (float)Call(f.gait, "StepReward")); } }));
         }
+
+        // 5-3 · 5-4 도우미
+        static float[] Air(Fix f) => (float[])Get(f.gait, "_air");
+        static float Touch(Fix f, int i, bool down)
+        {
+            var foot = i == 0 ? f.body.footL : f.body.footR;
+            foot.touchingGround = down;
+            return (float)Call(f.gait, "Touchdown", i, foot);
+        }
+        static void Move(Fix f) { foreach (var p in f.body.GetComponentsInChildren<BodyPart>()) p.rb.linearVelocity = Vector3.forward; }
+        static void Tilt(Fix f, float deg) { f.body.torso.transform.rotation = Quaternion.Euler(deg, 0f, 0f); Physics.SyncTransforms(); }
 
         // 5-1: 성적을 만들어 두고 RecordStats 를 불러, 그 이름으로 보낸 값을 본다
         static (object, object) Stat(string key, float expected)
@@ -312,6 +358,10 @@ namespace HumanoidEditor
                 Set(f.walk, "_reached", 3);
                 Set(f.walk, "_fell", true);
                 f.walk.targetSpeed = 1f;
+                var gait = (GaitStats)Get(f.walk, "gait");
+                gait.time = 10f; gait.left.slip = 2f; gait.right.slip = 1f;          // 미끄러짐 3m / 10초 = 0.3
+                gait.left.steps = 4; gait.right.steps = 5;                          // 좌우 4 : 5 = 0.8
+                gait.samples = 10; gait.tilt = 100f; gait.targetMotion = 500f;      // 기울기 10도 · 떨림 50도/초
                 ClearStats();
                 Call(f.walk, "RecordStats");
                 var sent = SentStats();

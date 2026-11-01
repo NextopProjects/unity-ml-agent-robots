@@ -685,7 +685,7 @@ namespace HumanoidEditor
                 answer = "base.CollectObservations(sensor);                                                   // 48\n// 목표 방향을 \"내가 보는 방향\" 기준으로. 어느 쪽을 보든 같은 상황이면 같은 숫자가 나와야 한다.\nVector3 local = Quaternion.Inverse(HumanoidMath.HeadingRotation(body.pelvis.transform.forward)) * DirectionToTarget();\nsensor.AddObservation(local.x);                                                     // 1\nsensor.AddObservation(local.z);                                                     // 1\nsensor.AddObservation(targetSpeed);                                                 // 1" });
 
             ch.steps.Add(new Step { title = "실습 4-2  걷기 보상 — 목표 도달", blank = "4-2",
-                start = "Vector3 dir = DirectionToTarget();\nVector3 velocity = body.CenterOfMassVelocity;\n\n// TensorBoard 성적표에 쓸 기록 (주어진 코드)\n_speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));\n_fell |= body.HasFallen;\n\n// TODO: 목표에 닿았으면 보너스 1 · 도달 수 +1 · 새 목표.  그리고 속도 점수 × 방향 점수를 더해 돌려준다\nreturn 0f;",  mode = "일부 코드 제공",
+                start = "Vector3 dir = DirectionToTarget();\nVector3 velocity = body.CenterOfMassVelocity;\n\n// TensorBoard 성적표에 쓸 기록 (주어진 코드)\n_speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));\n_fell |= body.HasFallen;\ngait.Step(body, dir, Time.fixedDeltaTime);\n\n// TODO: 목표에 닿았으면 보너스 1 · 도달 수 +1 · 새 목표.  그리고 속도 점수 × 방향 점수를 더해 돌려준다\nreturn 0f;",  mode = "일부 코드 제공",
                 goal = "목표에 닿으면 +1 하고 새 목표로, 평소에는 \"속도 × 방향\" 점수를 준다",
                 concept = "WalkAgent.StepReward() — 서기 보상을 덮어쓴다. 3장의 OnActionReceived 가 이 값을 AddReward 한다.\n" +
                           "쓸 수 있는 것:\n" +
@@ -702,7 +702,7 @@ namespace HumanoidEditor
                     "Vector3 toTarget = target.position - body.pelvis.transform.position;  toTarget.y = 0f;\nfloat bonus = 0f;\nif (toTarget.magnitude < 0.6f) { bonus = 1f; _reached++; MoveTarget(); }\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed) * HumanoidMath.FacingReward(body.torso.transform.forward, dir);" },
                 skeleton = "(주어진 줄들)\n\nVector3 toTarget = target.position - body.pelvis.transform.position;\ntoTarget.y = ___;\nfloat bonus = 0f;\nif (toTarget.___ < 0.6f) { bonus = ___; _reached++; ___(); }\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed) * HumanoidMath.___(body.torso.transform.forward, dir);",
                 explain = "RollerBall 은 목표에 닿으면 +1 하고 판을 끝냈다. 여기서는 목표만 옮기고 판을 이어 간다 — 계속 걷는 법을 배우게.\nMoveTarget() 이 제한시간도 새로 준다(실습 4-3에서 쓴다).",
-                answer = "Vector3 dir = DirectionToTarget();\nVector3 velocity = body.CenterOfMassVelocity;\n\n// 목표 쪽으로 실제로 얼마나 빨리 가고 있나 → 판 평균\n_speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));\n_fell |= body.HasFallen;\n\n// 목표에 닿으면 +1 하고 새 자리로 옮긴다 (제한시간도 새로). 판은 끝내지 않는다 (계속 걷게)\nVector3 toTarget = target.position - body.pelvis.transform.position;\ntoTarget.y = 0f;\nfloat bonus = 0f;\nif (toTarget.magnitude < 0.6f) { bonus = 1f; _reached++; MoveTarget(); }\n\n// 더하지 않고 곱한다. 엉뚱한 쪽을 보고 달리거나, 목표를 보고 서 있기만 하면 0점에 가깝다.\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed)\n             * HumanoidMath.FacingReward(body.torso.transform.forward, dir);" });
+                answer = "Vector3 dir = DirectionToTarget();\nVector3 velocity = body.CenterOfMassVelocity;\n\n// 목표 쪽으로 실제로 얼마나 빨리 가고 있나 → 판 평균\n_speed.Add(Vector3.Dot(new Vector3(velocity.x, 0f, velocity.z), dir));\n_fell |= body.HasFallen;\ngait.Step(body, dir, Time.fixedDeltaTime);\n\n// 목표에 닿으면 +1 하고 새 자리로 옮긴다 (제한시간도 새로). 판은 끝내지 않는다 (계속 걷게)\nVector3 toTarget = target.position - body.pelvis.transform.position;\ntoTarget.y = 0f;\nfloat bonus = 0f;\nif (toTarget.magnitude < 0.6f) { bonus = 1f; _reached++; MoveTarget(); }\n\n// 더하지 않고 곱한다. 엉뚱한 쪽을 보고 달리거나, 목표를 보고 서 있기만 하면 0점에 가깝다.\nreturn bonus + HumanoidMath.SpeedReward(velocity, dir, targetSpeed)\n             * HumanoidMath.FacingReward(body.torso.transform.forward, dir);" });
 
             ch.steps.Add(new Step { title = "실습 4-3  제한시간 — 못 닿으면 판 끝", blank = "4-3",
                 start = "base.OnActionReceived(actions);     // 서기의 행동 · 보상 · 넘어지면 끝내기 (주어진 코드)",  mode = "기능 추가",
@@ -739,72 +739,191 @@ namespace HumanoidEditor
             ch.steps.Add(s.Do("학습된 모델로 Play → 빨간 상자를 향해 걷고, 닿으면 다음 상자로 방향을 튼다"));
 
             // ═══════════════════════════════════════════════════════════
-            // 학습과 평가
+            // 자연스럽게 걷기
             // ═══════════════════════════════════════════════════════════
-            ch = new Chapter { title = "5. 학습과 평가", doc = "05-학습과-평가.md",
-                goals = new[] { "코드 수정 없이 병렬 학습한다", "커리큘럼으로 목표 속도를 올린다", "보상 말고 진짜 목표를 지표로 남기고, 커리큘럼 값을 읽는다" } };
+            ch = new Chapter { title = "5. 자연스럽게 걷기", doc = "05-학습과-평가.md",
+                goals = new[] { "4장 모델의 걸음을 숫자로 재서 무엇이 이상한지 찾는다", "보상에 \"어떻게 걷는가\"를 더하고, 목표 방향 · 속도를 단계적으로 올린다", "4장 모델과 같은 조건으로 평가해 개선을 숫자로 확인한다" } };
             list.Add(ch);
 
+            s = new Step { title = "4장 모델 진단", goal = "4장에서 학습한 걸음을 눈과 숫자로 본다",
+                concept = "목표에는 가는데 걸음이 이상하다 — 몸을 앞으로 숙이고, 발을 바닥에 댄 채 미끄러뜨리고, 관절이 덜덜 떤다.\n" +
+                          "눈으로 본 것을 숫자로 바꿔야 고쳤는지 알 수 있다. 메뉴 Humanoid > 걸음걸이 평가 가 120초를 걷게 하고 성적표를 찍는다.\n\n" +
+                          "실측(미리 학습한 HumanoidWalk.onnx · 사방 목표 · 3번):\n" +
+                          "  속도 0.74 m/s · 몸통 기울기 32° · 끌림 1.4 m/m (1m 갈 때 발이 1.4m 미끄러짐) · 떨림 약 3350°/초 · 좌우 걸음 0.86~0.91\n" +
+                          "목표를 정면 ±30° 에만 두어도 끌림은 1.37 — 돌기 때문이 아니다.\n\n" +
+                          "왜? 4장 보상은 \"목표 쪽으로 목표 속도\"뿐이다. 숙이고 끌며 가도 거의 만점(약 0.95)이라 고칠 이유가 없다.\n" +
+                          "발 마찰을 0.6 → 1.0 으로 올려도 끌림은 1.52 → 1.30 으로 조금만 준다 — 물리가 아니라 보상 문제다.",
+                hint = "Model 칸에 넣는 .onnx 의 관측 · 행동 수가 51 · 18 이 아니면 Unity 가 꺼진다. Assets/Humanoid/results/HumanoidWalk.onnx 를 쓴다." };
+            s.Do("Model 칸에 4장 모델(.onnx)을 넣는다", () => Brain != null && Brain.Model != null).Insp(Root, typeof(BehaviorParameters), "Model ← .onnx 끌어다 놓기");
+            s.Do("Behavior Type 을 Inference Only 로 바꾼다", () => IsBehavior(BehaviorType.InferenceOnly), "바꾸기", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Behavior Type");
+            PlayStep(s);
+            s.Do("Scene 뷰에서 걸음을 본다 — 몸통 · 발 · 관절");
+            s.Do("메뉴 Humanoid > 걸음걸이 평가 를 실행하고 콘솔의 성적표를 적어 둔다", null, "평가 실행", () => EditorApplication.ExecuteMenuItem("Humanoid/걸음걸이 평가 (Play 중 · 120초)"));
+            StopStep(s);
+            ch.steps.Add(s.Do("Behavior Type 을 Default 로 되돌린다", () => !Playing && IsBehavior(BehaviorType.Default), "되돌리기", () => SetBehavior(BehaviorType.Default)).Insp(Root, typeof(BehaviorParameters), "Behavior Type"));
+
+
             ch.steps.Add(new Step { title = "실습 5-1  성적 기록 — StatsRecorder", blank = "5-1",
-                goal = "판이 끝날 때마다 걷기 성적 네 가지를 TensorBoard 에 남긴다",
+                goal = "판이 끝날 때마다 걷기 성적 · 걸음걸이를 TensorBoard 에 남긴다",
                 concept = "WalkAgent.RecordStats() — 새 판이 시작될 때(OnEpisodeBegin) 지난 판의 성적을 남긴다.\n" +
                           "쓸 수 있는 것:\n" +
                           "  Academy.Instance.StatsRecorder.Add(\"이름\", 값)   TensorBoard 에 값을 남긴다 (ML-Agents)\n" +
                           "  _speed (SpeedStats)  .Count · .Average · .Error(targetSpeed)     _fell  이번 판에 넘어졌나     _reached  닿은 목표 수\n" +
+                          "  gait (GaitStats)  .Slip 발 미끄러짐(m/s) · .StepBalance 좌우 걸음 수 비 · .Tilt 몸통 기울기(도) · .Jitter 관절 목표 변화(도/초)\n" +
                           "남길 것:  Walk/Speed = 평균 속도 · Walk/SpeedError = 속도 오차 · Walk/FallRate = 넘어졌으면 1 아니면 0 · Walk/Targets = 닿은 수\n" +
+                          "          Gait/Slip · Gait/StepBalance · Gait/Tilt · Gait/Jitter = gait 의 같은 이름 값\n" +
                           "첫 판처럼 기록이 하나도 없으면(_speed.Count == 0) 아무것도 남기지 않는다.\n" +
                           "\n" +
-                          "보상만 보면 \"정말 잘 걷는지\"를 모른다. 진짜 목표를 따로 재서 남긴다.",
+                          "보상만 보면 \"정말 잘 걷는지\"를 모른다. 진짜 목표(도달 · 넘어짐)와 걸음 모양(끌림 · 균형 · 자세 · 떨림)을 따로 재서 남긴다.",
                 hints = new[] {
                     "StatsRecorder 는 이름을 \"그룹/이름\" 으로 쓰면 TensorBoard 에서 그룹으로 묶인다 (Walk/…).",
-                    "① _speed.Count 가 0 이면 return\n② var stats = Academy.Instance.StatsRecorder;\n③ 네 가지를 stats.Add 로",
-                    "if (_speed.Count == 0) return;\nvar stats = Academy.Instance.StatsRecorder;\nstats.Add(\"Walk/Speed\", _speed.Average);   stats.Add(\"Walk/SpeedError\", _speed.Error(targetSpeed));\nstats.Add(\"Walk/FallRate\", _fell ? 1f : 0f);   stats.Add(\"Walk/Targets\", _reached);" },
-                skeleton = "if (_speed.Count == 0) ___;\nvar stats = Academy.Instance.___;\nstats.Add(\"Walk/Speed\", _speed.___);\nstats.Add(\"Walk/SpeedError\", _speed.Error(___));\nstats.Add(\"Walk/FallRate\", _fell ? ___ : ___);\nstats.Add(\"Walk/Targets\", ___);",
+                    "① _speed.Count 가 0 이면 return\n② var stats = Academy.Instance.StatsRecorder;\n③ Walk 네 가지 · Gait 네 가지를 stats.Add 로",
+                    "if (_speed.Count == 0) return;\nvar stats = Academy.Instance.StatsRecorder;\nstats.Add(\"Walk/Speed\", _speed.Average);   stats.Add(\"Walk/SpeedError\", _speed.Error(targetSpeed));\nstats.Add(\"Walk/FallRate\", _fell ? 1f : 0f);   stats.Add(\"Walk/Targets\", _reached);\nstats.Add(\"Gait/Slip\", gait.Slip);   stats.Add(\"Gait/StepBalance\", gait.StepBalance);   stats.Add(\"Gait/Tilt\", gait.Tilt);   stats.Add(\"Gait/Jitter\", gait.Jitter);" },
+                skeleton = "if (_speed.Count == 0) ___;\nvar stats = Academy.Instance.___;\nstats.Add(\"Walk/Speed\", _speed.___);\nstats.Add(\"Walk/SpeedError\", _speed.Error(___));\nstats.Add(\"Walk/FallRate\", _fell ? ___ : ___);\nstats.Add(\"Walk/Targets\", ___);\nstats.Add(\"Gait/Slip\", gait.___);   (StepBalance · Tilt · Jitter 도 같은 모양)",
                 explain = "FallRate 를 판마다 0/1 로 남기면 TensorBoard 가 평균 낸 값이 곧 \"넘어지는 비율\"이 된다.\n학습 중 Python 쪽으로 보내져 results/ 의 TensorBoard 기록에 쌓인다.",
-                answer = "if (_speed.Count == 0) return;\nvar stats = Academy.Instance.StatsRecorder;\nstats.Add(\"Walk/Speed\", _speed.Average);\nstats.Add(\"Walk/SpeedError\", _speed.Error(targetSpeed));\nstats.Add(\"Walk/FallRate\", _fell ? 1f : 0f);    // 판마다 0/1 → 평균이 곧 넘어짐 비율\nstats.Add(\"Walk/Targets\", _reached);" });
+                answer = "if (_speed.Count == 0) return;\nvar stats = Academy.Instance.StatsRecorder;\nstats.Add(\"Walk/Speed\", _speed.Average);\nstats.Add(\"Walk/SpeedError\", _speed.Error(targetSpeed));\nstats.Add(\"Walk/FallRate\", _fell ? 1f : 0f);    // 판마다 0/1 → 평균이 곧 넘어짐 비율\nstats.Add(\"Walk/Targets\", _reached);\nstats.Add(\"Gait/Slip\", gait.Slip);                  // 발이 미끄러지는 속도 — 발 끌기\nstats.Add(\"Gait/StepBalance\", gait.StepBalance);    // 왼발 · 오른발 걸음 수 비 (1 = 같음)\nstats.Add(\"Gait/Tilt\", gait.Tilt);                  // 몸통 기울기 (도)\nstats.Add(\"Gait/Jitter\", gait.Jitter);              // 관절 목표 변화 (도/초) — 떨림" });
 
             ch.steps.Add(new Step { title = "실습 5-2  커리큘럼 값 읽기", blank = "5-2",
-                goal = "yaml 커리큘럼이 정한 목표 속도를 판마다 읽어 온다",
-                concept = "WalkAgent.ReadCurriculum() — 판이 시작될 때 부른다. targetSpeed 를 커리큘럼 값으로 바꾼다.\n" +
+                goal = "yaml 커리큘럼이 정한 목표 속도 · 목표 방향 범위를 판마다 읽어 온다",
+                concept = "WalkAgent.ReadCurriculum() — 판이 시작될 때 부른다. targetSpeed · targetAngle 을 커리큘럼 값으로 바꾼다.\n" +
                           "쓸 수 있는 것: Academy.Instance.EnvironmentParameters.GetWithDefault(\"이름\", 기본값)\n" +
                           "               학습기(yaml)가 보낸 값을 읽는다. 값이 없으면(커리큘럼 없음 · 학습기 없이 Play) 기본값을 돌려준다.\n" +
                           "\n" +
-                          "yaml 의 environment_parameters: target_speed 가 0.5 → 1.0 → 1.5 로 올라간다. 코드는 이 한 줄만 있으면 된다.\n" +
-                          "기본값으로 지금 targetSpeed(Inspector 값)를 주면, 커리큘럼이 없을 때 그대로 유지된다.",
+                          "yaml 의 environment_parameters: target_speed(목표 속도) 와 target_angle(목표를 놓는 방향, 몸 정면 ±도) 이 단계마다 바뀐다.\n" +
+                          "값 하나에 한 줄이면 된다.\n" +
+                          "기본값으로 지금 값(Inspector 값)을 주면, 커리큘럼이 없을 때 그대로 유지된다.",
                 hints = new[] {
-                    "이름은 yaml 과 똑같이 \"target_speed\". 기본값은 지금 값.",
-                    "① GetWithDefault(\"target_speed\", targetSpeed) 로 읽는다\n② targetSpeed 에 넣는다",
-                    "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed);" },
-                skeleton = "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(___, ___);",
+                    "이름은 yaml 과 똑같이 \"target_speed\" · \"target_angle\". 기본값은 지금 값.",
+                    "① GetWithDefault(\"target_speed\", targetSpeed) 로 읽어 targetSpeed 에 넣는다\n② target_angle 도 같은 모양으로 targetAngle 에",
+                    "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed);\ntargetAngle = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_angle\", targetAngle);" },
+                skeleton = "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(___, ___);\ntargetAngle = Academy.Instance.EnvironmentParameters.GetWithDefault(___, ___);",
                 explain = "커리큘럼 단계가 바뀌면 다음 판부터 새 값이 온다. 판 시작 때 읽는 이유다.\n이름 철자가 yaml 과 다르면 에러 없이 늘 기본값만 나온다 — 커리큘럼이 \"안 먹는\" 흔한 원인.",
-                answer = "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed);" });
+                answer = "targetSpeed = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_speed\", targetSpeed);\ntargetAngle = Academy.Instance.EnvironmentParameters.GetWithDefault(\"target_angle\", targetAngle);" });
+
+            s = new Step { title = "자연스럽게 걷기 에이전트로 바꾸기", goal = "Walk Agent 를 Gait Agent 로 바꾼다",
+                concept = "Gait Agent 는 Walk Agent 를 상속한다. 관측 51 · 행동 18 · 목표 · 판 끝은 그대로이고 보상만 더한다. 한 번에 하나씩.\n" +
+                          "관측 · 행동 수가 같아서 4장 모델도 이 에이전트에 넣어 같은 조건으로 비교할 수 있다.\n\n" +
+                          "Inspector 의 칸:\n" +
+                          "  Upright · Slip · Action Rate Weight   나쁜 만큼 점수를 깎는 세기 (0 = 끄기)\n" +
+                          "  Air Time Weight                       발을 들었다 디딘 순간 주는 점수의 세기\n" +
+                          "  Max Joint Torque                      관절 모터 힘 상한 N·m. 기본 300 · 0 = 1~4장 그대로(사실상 무제한). 걷기에서만 바뀐다\n" +
+                          "같은 이름이 yaml 의 environment_parameters 에 있으면 그 값을 쓴다 — 빌드를 다시 하지 않고 실험 조건을 바꾼다.\n\n" +
+                          "Behavior Name 을 HumanoidGait 로 바꿔 4장 학습과 따로 기록한다.",
+                solve = () => EditorApplication.ExecuteMenuItem("Humanoid/5. 자연스럽게 걷기 에이전트로 바꾸기") };
+            s.Do("Humanoid 에 Add Component > Gait Agent", () => Has<GaitAgent>(Root)).Insp(Root, typeof(GaitAgent), "Add Component ▸ Gait Agent");
+            s.Do("Walk Agent 를 지운다 (⋮ > Remove Component)", () => T(Root) != null && T(Root).GetComponents<StandAgent>().Length == 1).Insp(Root, typeof(WalkAgent), "Walk Agent 의 ⋮ ▸ Remove Component");
+            s.Do("Gait Agent 의 Target 칸에 Target 을 끌어다 놓는다", () => Has<GaitAgent>(Root) && Get<GaitAgent>(Root).target == T(Target)).Insp(Root, typeof(GaitAgent), "Target ← Hierarchy 의 Target 을 끌어다 놓기");
+            s.Do("Push Interval 0 · Max Step 5000", () => Has<GaitAgent>(Root) && Get<GaitAgent>(Root).pushInterval == 0 && Get<GaitAgent>(Root).MaxStep == 5000).Insp(Root, typeof(GaitAgent), "Push Interval · Max Step");
+            ch.steps.Add(s.Do("Behavior Name: HumanoidGait", () => Brain != null && Brain.BehaviorName == "HumanoidGait").Insp(Root, typeof(BehaviorParameters), "Behavior Name"));
+
+            ch.steps.Add(new Step { title = "실습 5-3  발을 디딘 순간", blank = "5-3",
+                goal = "발이 떠 있던 시간을 재고, 땅에 닿는 순간 점수를 돌려준다",
+                concept = "GaitAgent.Touchdown(i, foot) — 매 스텝 발마다(왼발 i = 0, 오른발 i = 1) 부른다. 돌려준 값을 실습 5-4 가 보상에 더한다.\n" +
+                          "쓸 수 있는 것:\n" +
+                          "  foot.touchingGround  바닥에 닿았나            _air[i]  그 발이 떠 있은 시간(초)    Time.fixedDeltaTime  한 스텝 시간 (0.02초)\n" +
+                          "  HumanoidMath.AirTimeScore(air)  떠 있던 시간 - 0.25초, ±0.25 로 자름  (주어진 함수)\n" +
+                          "할 일:\n" +
+                          "  떠 있으면  시간을 한 스텝 늘리고 0 을 돌려준다\n" +
+                          "  닿았으면   떠 있던 시간을 꺼내고 0 으로 되돌린 뒤, 0.1초 이상 떠 있었을 때만 AirTimeScore 를 돌려준다\n\n" +
+                          "왜 이 점수? 발을 0.25초보다 오래 들었다 디디면 +, 질질 끌며 잠깐씩 뜨면 −. 걷는 법을 알려 주지 않고 \"발을 들어라\"만 말한다.\n" +
+                          "0.1초 미만은 걸음으로 치지 않는다 — 판 시작 때 몸을 되돌린 직후 · 접촉이 한 스텝 끊긴 것까지 벌점을 주지 않게.",
+                hints = new[] {
+                    "발마다 \"떠 있은 시간\" 타이머가 하나 있다고 생각한다. 떠 있으면 타이머를 돌리고, 닿는 순간 타이머 값으로 점수를 매긴 뒤 0 으로.",
+                    "① 안 닿았으면: _air[i] += Time.fixedDeltaTime; return 0f;\n② 닿았으면: air = _air[i]; _air[i] = 0f;\n③ air 가 0.1 이상이면 AirTimeScore(air), 아니면 0",
+                    "if (!foot.touchingGround) { _air[i] += Time.fixedDeltaTime; return 0f; }\nfloat air = _air[i];\n_air[i] = 0f;\nreturn air >= 0.1f ? HumanoidMath.AirTimeScore(air) : 0f;" },
+                skeleton = "if (!foot.___) { _air[i] += ___; return 0f; }\nfloat air = _air[i];\n_air[i] = ___;\nreturn air >= ___ ? HumanoidMath.___(air) : 0f;",
+                explain = "닿아 있는 동안은 타이머가 0 이라 매 스텝 0 을 돌려준다 — 점수는 닿는 첫 스텝에 한 번만 나온다.\n점수를 준 뒤 0 으로 되돌리지 않으면, 다음 걸음 때 이전 걸음의 시간이 더해진다.",
+                answer = "if (!foot.touchingGround) { _air[i] += Time.fixedDeltaTime; return 0f; }\nfloat air = _air[i];\n_air[i] = 0f;\nreturn air >= 0.1f ? HumanoidMath.AirTimeScore(air) : 0f;" });
+
+            ch.steps.Add(new Step { title = "실습 5-4  걸음 보상", blank = "5-4", mode = "기능 추가",
+                start = "float r = base.StepReward();     // 목표 쪽으로 목표 속도 (0~1) + 도달 보너스 (주어진 코드)\n\n// TODO: 몸통 기울기 · 발 미끄러짐 · 행동 떨림만큼 깎고, 발을 디딘 순간 점수를 더한다\nreturn r;",
+                goal = "4장 보상에 \"어떻게 걷는가\"를 더한다 — 깎기 셋, 더하기 하나",
+                concept = "GaitAgent.StepReward() — WalkAgent 의 것을 덮어쓴다. 4장 보상은 base.StepReward() 로 그대로 받는다.\n" +
+                          "쓸 수 있는 것:\n" +
+                          "  HumanoidMath.Upright(body.torso.transform.up)  몸통이 선 정도 (똑바로 1 · 30° 0.54 · 45° 넘으면 0)  (주어진 함수)\n" +
+                          "  body.footL.SlipSpeed · body.footR.SlipSpeed     닿은 발이 미끄러지는 속도 m/s (안 닿았으면 0)\n" +
+                          "  _actionChange    지난 판단에서 행동이 바뀐 크기 (평균 제곱. OnActionReceived 가 구해 둔다)\n" +
+                          "  Touchdown(0, body.footL) · Touchdown(1, body.footR)   실습 5-3\n" +
+                          "  uprightWeight · slipWeight · actionRateWeight · airTimeWeight\n" +
+                          "할 일:\n" +
+                          "  r *= Lerp(1, Upright, uprightWeight)                    기운 만큼 곱해서 깎는다\n" +
+                          "  r /= 1 + slipWeight × (왼발 + 오른발 미끄러짐)            미끄러짐 1 m/s 면 절반\n" +
+                          "  r /= 1 + actionRateWeight × _actionChange               행동 변화 1 이면 절반\n" +
+                          "  r += airTimeWeight × (왼발 Touchdown + 오른발 Touchdown)  깎은 뒤에 더한다\n\n" +
+                          "왜 빼지 않고 깎나? 벌점을 빼면 한 스텝 보상이 음수가 될 수 있고, 그러면 \"빨리 넘어져 판을 끝내기\"가 이득이 된다.\n" +
+                          "깎기(곱하기 · 나누기)는 0 밑으로 내려가지 않는다. 그리고 4장처럼 \"다 잘해야 점수\" — 한 가지만 극대화하는 편법을 막는다.",
+                hints = new[] {
+                    "4장 점수 r 에 \"나쁜 정도\"를 하나씩 반영한다. 몸통은 곱하기, 미끄러짐 · 떨림은 (1 + 세기 × 나쁜 정도) 로 나누기, 걸음 점수만 더하기.",
+                    "① r *= Mathf.Lerp(1f, HumanoidMath.Upright(…), uprightWeight);\n② r /= 1f + slipWeight * (…);\n③ r /= 1f + actionRateWeight * _actionChange;\n④ r += airTimeWeight * (Touchdown(0, …) + Touchdown(1, …));",
+                    "r *= Mathf.Lerp(1f, HumanoidMath.Upright(body.torso.transform.up), uprightWeight);\nr /= 1f + slipWeight * (body.footL.SlipSpeed + body.footR.SlipSpeed);\nr /= 1f + actionRateWeight * _actionChange;\nr += airTimeWeight * (Touchdown(0, body.footL) + Touchdown(1, body.footR));" },
+                skeleton = "float r = base.StepReward();\n\nr *= Mathf.Lerp(1f, HumanoidMath.___(body.torso.transform.up), uprightWeight);\nr /= 1f + slipWeight * (body.footL.___ + body.footR.___);\nr /= 1f + ___ * _actionChange;\n\nr += airTimeWeight * (Touchdown(0, body.footL) + ___);\nreturn r;",
+                explain = "Lerp(1, Upright, 세기): 세기 0 이면 1(안 깎음), 1 이면 Upright 그대로. 나머지도 세기 0 이면 1 로 나눠 그대로다.\n" +
+                          "그래서 yaml 에서 세기를 0 으로 두면 그 항목만 꺼진다 — 항목 하나를 빼고 학습해 보는 실험이 코드 수정 없이 된다.\n" +
+                          "걸음 점수를 깎기 뒤에 더하는 이유: 앞에 더하면 걸음 점수까지 깎여서, 몸이 기울 때 \"발 들기\"를 배울 이유가 줄어든다.",
+                answer = "float r = base.StepReward();     // 목표 쪽으로 목표 속도 (0~1) + 도달 보너스\n\nr *= Mathf.Lerp(1f, HumanoidMath.Upright(body.torso.transform.up), uprightWeight);\nr /= 1f + slipWeight * (body.footL.SlipSpeed + body.footR.SlipSpeed);\nr /= 1f + actionRateWeight * _actionChange;\n\nr += airTimeWeight * (Touchdown(0, body.footL) + Touchdown(1, body.footR));\nreturn r;" });
 
             s = new Step { title = "병렬 학습", goal = "학습 영역을 9개로 복제한다",
                 concept = "Behavior Name 이 같은 에이전트는 한 두뇌로 묶인다. 코드는 그대로, 경험은 9배.\n" +
                           "1장에서 모든 것을 HumanoidArea 하나에 담은 이유가 이것이다.\n" +
                           "직접 하려면 HumanoidArea 를 Ctrl+D 로 복제해 45m씩 띄운다(바닥이 40m). 8번 반복이라 버튼으로.\n" +
-                          "빌드해서 --num-envs=4 로 띄우면 9 × 4 = 에이전트 36개.",
+                          "빌드해서 --num-envs=3 으로 띄우면 9 × 3 = 에이전트 27개.",
                 solve = () => EditorApplication.ExecuteMenuItem("Humanoid/5. 학습 영역 9개로 복제") };
             ch.steps.Add(s.Do("학습 영역을 9개로 만든다", () => GameObject.Find(Area + " 8") != null, "9개로 복제", () => EditorApplication.ExecuteMenuItem("Humanoid/5. 학습 영역 9개로 복제")).Hier(Area, "오른쪽 [9개로 복제] 버튼"));
 
-            s = new Step { title = "커리큘럼으로 학습", goal = "목표 속도를 0.5 → 1.0 → 1.5 로 올리며 학습한다",
-                concept = "yaml 맨 아래 environment_parameters 가 커리큘럼이다. 보상이 threshold 를 넘으면 다음 단계로.\n\n" +
-                          "1.0 으로만 학습한 모델을 평가하면(실측): 0.5 → 9/10 넘어짐 · 1.0 → 3/10 · 1.5 → 8/10.\n" +
-                          "배운 속도에서만 잘한다. 여러 속도를 쓰려면 여러 속도로 배워야 한다.\n\n" +
-                          "File > Build Profiles 로 빌드한 뒤:\n  mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk_curriculum --env=<빌드>.exe --no-graphics --num-envs=4",
-                hint = "Lesson Number 가 안 오르면 threshold 가 보상보다 높다. 'worker in use' 오류는 --base-port=5020 처럼 바꾼다." };
-            s.Do("yaml 을 열어 environment_parameters 를 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_config.yaml"));
+            s = new Step { title = "커리큘럼으로 학습", goal = "쉬운 목표부터 — 느리게 · 정면부터 시작해 사방 · 목표 속도로 올린다",
+                concept = "humanoid_gait_config.yaml 의 environment_parameters:\n" +
+                          "  보상 세기   upright · slip · action_rate 1 · air_time 5 · max_joint_torque 300\n" +
+                          "  커리큘럼   target_speed  0.5 → 1.0 (학습 25% 에서)\n" +
+                          "             target_angle  정면 ±30° → ±90° (25%) → 사방 (50%)\n" +
+                          "  단계는 보상이 아니라 진행률(progress)로 넘긴다. 보상 세기가 바뀌면 보상 크기도 바뀌어 기준을 다시 잡아야 해서다.\n\n" +
+                          "처음부터 사방 · 1.0 m/s 를 주면, 서는 법도 모르는 몸이 돌기부터 배워야 한다.\n" +
+                          "엉덩이에 비틀기 축이 없어서 디딘 발로는 돌 수 없다 — 크게 돌수록 발을 미끄러뜨려야 한다. 정면 목표로 걷는 법부터 배운다.\n\n" +
+                          "실측(에이전트 27 · 1000만 스텝 · 약 80분, 학습 3개를 동시에 돌린 시간):\n" +
+                          "  학습 중 Gait/Tilt 약 9° · Gait/Slip 0.29 m/s · Walk/FallRate 0.06 까지 내려간다.\n" +
+                          "  25% 에서 속도 · 방향이 함께 올라갈 때 성적이 한 번 크게 떨어졌다가 회복한다.\n\n" +
+                          "File > Build Profiles 로 빌드한 뒤:\n  mlagents-learn Assets/Humanoid/humanoid_gait_config.yaml --run-id=gait --env=<빌드>.exe --no-graphics --num-envs=3",
+                hint = "'worker in use' 오류는 --base-port=5020 처럼 바꾼다. 학습 중 Gait/… 그래프가 안 보이면 실습 5-1 의 이름 철자를 본다." };
+            s.Do("yaml 을 열어 environment_parameters 를 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_gait_config.yaml"));
             s.Do("빌드한다 (씬 하나만 넣는다)");
-            s.Do("학습 명령을 복사해 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_config.yaml --run-id=walk_curriculum --env=Build/Humanoid.exe --no-graphics --num-envs=4"));
-            ch.steps.Add(s.Do("TensorBoard 에서 Environment/Lesson Number 와 Walk/… 지표를 본다"));
+            s.Do("학습 명령을 복사해 실행한다", null, "명령 복사", () => Copy("mlagents-learn Assets/Humanoid/humanoid_gait_config.yaml --run-id=gait --env=Build/Humanoid.exe --no-graphics --num-envs=3"));
+            ch.steps.Add(s.Do("TensorBoard 에서 Environment/Lesson Number 와 Gait/… · Walk/… 지표를 본다"));
 
-            s = new Step { title = "평가하고 정리하기", goal = "학습된 모델을 목표 속도별로 평가하고 영역을 1개로 되돌린다",
-                concept = "학습 중 점수는 탐험 때문에 실력보다 낮다. 평가는 Inference Only 로 따로 한다.\n" +
-                          "Walk Agent 의 Target Speed 를 0.5 / 1.0 / 1.5 로 바꿔 가며 화면의 평균 속도 · 도달 수를 적는다.",
-                done = "휴머노이드 트랙 끝! 스스로 걷는 정책을 만들고, 평가까지 했다.",
+            s = new Step { title = "평가 · 비교", goal = "4장 모델과 5장 모델을 같은 조건으로 재서 비교한다",
+                concept = "학습 중 그래프는 탐험(무작위 행동) 때문에 실제보다 떤다. 비교는 Inference Only 와 평가 메뉴로 한다.\n" +
+                          "평가 메뉴는 매번 같은 씨앗 · 같은 시간(120초)이라, 모델만 바꿔 끼우면 공정하게 비교된다.\n" +
+                          "Gait Agent 의 Target Speed 1 · Target Angle 180 (학습 마지막 단계와 같게) 에서 잰다.\n" +
+                          "직접 학습하지 않았으면 미리 학습해 둔 Assets/Humanoid/results/HumanoidGait.onnx 를 써도 된다 (힘 상한 300 으로 학습).\n\n" +
+                          "실측(사방 목표 · 1.0 m/s · 120초 × 씨앗 3개 평균):\n" +
+                          "              4장 모델   5장 모델\n" +
+                          "  속도          0.74      0.66 m/s\n" +
+                          "  끌림          1.42      0.45 m/m\n" +
+                          "  몸통 기울기   32°       9.5°\n" +
+                          "  떨림          3345      2132 °/s\n" +
+                          "  걸음/초       2.24      1.88\n" +
+                          "  보폭          0.30      0.70 m\n" +
+                          "  발 든 높이    0.11      0.15 m\n" +
+                          "  좌우 균형     0.88      0.90\n" +
+                          "  넘어짐        0         0   (각 360초)\n" +
+                          "끌림 · 기울기는 1/3, 떨림은 2/3 로 줄었다. 대신 속도가 목표(1.0)에서 더 멀어졌다 — 남은 과제다.",
+                hint = "Model 을 바꾸려면 Play 를 멈추고 바꾼다. 영역이 9개면 원본(첫 번째) 영역의 몸이 평가된다." };
+            s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼");
+            s.Do("Model 칸에 5장 모델을 넣고 Inference Only 로", () => Brain != null && Brain.Model != null && IsBehavior(BehaviorType.InferenceOnly), "Inference Only", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Model · Behavior Type");
+            PlayStep(s);
+            s.Do("걸음걸이 평가를 실행해 성적표를 4장 모델 것 옆에 적는다", null, "평가 실행", () => EditorApplication.ExecuteMenuItem("Humanoid/걸음걸이 평가 (Play 중 · 120초)"));
+            ch.steps.Add(StopStep(s));
+
+            s = new Step { title = "실험 — 항목 하나 끄기", goal = "보상 항목 하나가 걸음에 무엇을 바꾸는지 직접 확인한다",
+                concept = "yaml 의 세기 하나를 0 으로 바꾸고 다른 --run-id 로 학습한다. 빌드는 다시 하지 않는다.\n" +
+                          "예) slip_weight: 0 → 끌림이 돌아오는가?   air_time_weight: 0 → 발 든 높이 · 걸음 수가 줄어드는가?\n" +
+                          "    max_joint_torque: 300 → 모터 힘을 사람 수준으로 줄이면 무엇이 달라지는가?\n\n" +
+                          "실측(같은 커리큘럼 · 씨앗 하나씩):\n" +
+                          "  세기 전부 0 (4장 보상 그대로)  → 기울기 34° · 끌림 1.56 · 4.4 걸음/초 종종걸음. 학습 순서만으로는 못 고친다\n" +
+                          "  힘 상한 없음 (0)               → 끌림 0.47 · 기울기 10° 는 비슷. 발을 0.24m 로 높이 들고 1.57 걸음/초로 느리게\n" +
+                          "  기본 (힘 상한 300)             → 발 든 높이 0.15m · 1.88 걸음/초\n\n" +
+                          "한 번에 하나만 바꾼다. 두 개를 같이 바꾸면 무엇 때문에 달라졌는지 모른다.",
+                done = "휴머노이드 트랙 끝! 스스로 걷는 정책을 만들고, 걸음이 이상한 원인을 숫자로 찾아 고치고, 고쳤는지 숫자로 확인했다.",
                 solve = () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로") };
-            s.Do("목표 속도별 평가표를 채운다 (문서 05의 표)");
-            ch.steps.Add(s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼"));
+            ch.steps.Add(s.Do("세기 하나를 0 으로 바꿔 학습하고, 평가 메뉴로 비교한다"));
 
             return list;
         }

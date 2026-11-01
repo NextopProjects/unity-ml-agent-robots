@@ -29,6 +29,8 @@ namespace HumanoidEditor
             { "4-3", ("WalkAgent.cs", "void OnActionReceived(") },
             { "5-1", ("WalkAgent.cs", "void RecordStats(") },
             { "5-2", ("WalkAgent.cs", "void ReadCurriculum(") },
+            { "5-3", ("GaitAgent.cs", "float Touchdown(") },
+            { "5-4", ("GaitAgent.cs", "float StepReward(") },
         };
 
         public static string PathOf(string id) => Scripts + Member[id].file;
@@ -66,8 +68,10 @@ namespace HumanoidEditor
         // 컴파일만 되는 임시값: 반환형에 맞춘 return 한 줄 (void 면 없음)
         static string Placeholder(string id)
         {
-            string sig = File.ReadAllLines(PathOf(id)).FirstOrDefault(l => l.Contains(Member[id].name)) ?? "";
-            string type = sig.Contains(Member[id].name) ? sig.Substring(0, sig.IndexOf(Member[id].name)).Trim().Split(' ').Last() : "";
+            string sig = File.ReadAllLines(PathOf(id)).FirstOrDefault(l => l.Contains(Member[id].name) && !l.TrimStart().StartsWith("//")) ?? "";
+            // 이름 바로 앞 단어가 반환형이다: "protected override float StepReward(" · "public bool HasFallen"
+            string[] words = (sig.Contains("(") ? sig.Substring(0, sig.IndexOf('(')) : sig).Trim().Split(' ');
+            string type = words.Length >= 2 ? words[words.Length - 2] : "";
             return type == "float" ? "return 0f;" : type == "bool" ? "return false;" : "";
         }
 

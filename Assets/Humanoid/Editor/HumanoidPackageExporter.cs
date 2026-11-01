@@ -10,7 +10,7 @@ namespace HumanoidEditor
     // 휴머노이드 트랙을 .unitypackage 하나로 내보낸다. 다른 Unity 프로젝트로 옮길 때 쓴다.
     //
     // 담을 것만 정해 둔다 (폴더를 통째로 담지 않는다). 학습 결과(results/)처럼 작업 중에 생긴 것이 딸려 들어가지 않게.
-    //   담는 것: Docs · Editor · Materials · Scenes · Scripts 폴더,  humanoid_config.yaml · PLAN.md
+    //   담는 것: Docs · Editor · Materials · Scenes · Scripts 폴더,  humanoid_config.yaml · humanoid_gait_config.yaml · PLAN.md
     //   빼는 것: 그 밖의 모든 것 + 담는 폴더 안이라도 학습 결과 파일(.onnx · .pt …)
     //
     // IncludeDependencies 를 쓰지 않는다. 켜면 URP 설정 같은 프로젝트 에셋까지 딸려 들어간다.
@@ -19,7 +19,7 @@ namespace HumanoidEditor
     {
         const string Root = "Assets/Humanoid";
         static readonly string[] Folders = { "Docs", "Editor", "Materials", "Scenes", "Scripts" };
-        static readonly string[] Files = { "humanoid_config.yaml", "PLAN.md" };
+        static readonly string[] Files = { "humanoid_config.yaml", "humanoid_gait_config.yaml", "PLAN.md" };
         static readonly string[] ResultExtensions = { ".onnx", ".pt", ".nn", ".json" };     // 학습기가 만드는 파일 (timers.json 등)
         static readonly string[] Required = { "com.unity.ml-agents", "com.unity.inputsystem" };
 

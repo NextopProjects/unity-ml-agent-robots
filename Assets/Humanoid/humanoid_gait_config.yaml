@@ -1,0 +1,55 @@
+behaviors:
+
+  # ── 5장: 자연스럽게 걷기 (관측 51 / 연속 행동 18) ─────────────────────
+  # 4장 HumanoidWalk 와 같은 설정. 바뀌는 것은 보상(GaitAgent)과 아래 environment_parameters 뿐이다.
+  HumanoidGait:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 2048
+      buffer_size: 20480
+      learning_rate: 3.0e-4
+      beta: 5.0e-3
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+    network_settings:
+      normalize: true
+      hidden_units: 512
+      num_layers: 3
+    reward_signals:
+      extrinsic:
+        gamma: 0.995
+        strength: 1.0
+    max_steps: 10000000
+    time_horizon: 1000
+    summary_freq: 50000
+
+# GaitAgent · WalkAgent 가 판마다 읽는 값. 이름이 코드의 GetWithDefault("이름", …) 와 같아야 한다.
+environment_parameters:
+  # 보상 세기 (0 = 그 항목 끄기). 빌드를 다시 하지 않고 여기서 실험한다.
+  upright_weight: 1.0         # 몸통이 기운 만큼 깎기
+  slip_weight: 1.0            # 닿은 발이 미끄러진 만큼 깎기
+  action_rate_weight: 1.0     # 행동이 확 바뀐 만큼 깎기
+  air_time_weight: 5.0        # 발을 들었다 디딘 순간 더하기
+  max_joint_torque: 300       # 관절 모터 힘 상한 N·m. 0 = 1~4장 그대로 (사실상 무제한)
+
+  # 커리큘럼 — 쉬운 목표부터. 단계는 학습 진행률(progress)로 넘긴다.
+  # (보상으로 넘기면 보상 세기를 바꿀 때마다 기준을 다시 재야 한다)
+  target_speed:
+    curriculum:
+      - name: Slow
+        completion_criteria: {measure: progress, behavior: HumanoidGait, threshold: 0.25}
+        value: 0.5
+      - name: Normal
+        value: 1.0
+  target_angle:               # 목표를 놓는 방향: 몸 정면 ±몇 도
+    curriculum:
+      - name: Front
+        completion_criteria: {measure: progress, behavior: HumanoidGait, threshold: 0.25}
+        value: 30
+      - name: Side
+        completion_criteria: {measure: progress, behavior: HumanoidGait, threshold: 0.5}
+        value: 90
+      - name: All
+        value: 180
