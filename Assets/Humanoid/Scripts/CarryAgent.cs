@@ -9,7 +9,7 @@ namespace Humanoid
     // 걸어가서 상자를 양팔로 집어 들고, 무작위로 고른 작업대에 내려놓기.
     // StandAgent 를 상속한다 — 관측 48 · 행동 18 · 넘어지면 끝은 그대로, 상자 · 놓을 자리 관측과 보상이 더해진다.
     // RobotArms 5장과 같은 구조다: 단계마다 "지금 가야 할 점"이 바뀌고, 그 점에 가까워진 만큼 보상한다.
-    //   ① 손(두 아래팔 끝 가운데)을 상자로  ② 양팔로 잡고 들어 올린다  ③ 상자를 놓을 자리 위로  ④ 내려놓고 팔을 뗀다
+    //   ① 두 아래팔을 상자 양옆으로  ② 양팔로 잡고 들어 올린다  ③ 상자를 놓을 자리 위로  ④ 내려놓고 팔을 뗀다
     // 다가간 보상은 "그 단계에서 지금까지 가장 가까웠던 거리"를 갱신할 때만 준다 — 오갔다 하며 쌓을 수 없게.
     // 잡았는지는 물리가 정한다(양쪽 아래팔이 상자에 닿음). 상자를 붙이거나 옮기는 코드는 없다.
     public class CarryAgent : StandAgent
@@ -27,17 +27,19 @@ namespace Humanoid
         static readonly Vector3[] Levels = { new Vector3(0.45f, 0f, 0.8f), new Vector3(1.0f, 30f, 1.2f), new Vector3(2.0f, 90f, 2.0f), new Vector3(3.5f, 180f, 3.0f) };
 
         [Header("보상")]
-        public float graspReward = 1f;       // 처음 양팔로 잡았을 때 (판에 한 번)
+        public float graspReward = 1f;       // 처음 0.3초 동안 양팔로 잡고 있었을 때 (판에 한 번)
         public float liftReward = 1f;        // 처음 0.5초 동안 들고 있었을 때 (판에 한 번)
         public float placeReward = 3f;       // 놓기 성공 — 판이 끝난다
-        public float dropPenalty = 2f;       // 상자를 바닥에 떨어뜨림 — 판이 끝난다. 잡기 + 들기(2)만큼: 잡고 밀어 떨어뜨리기가 이득이 되지 않게
+        public float dropPenalty = 1f;       // 상자를 바닥에 떨어뜨림 — 판이 끝난다
+                                             // (2 로 했더니 상자를 아예 건드리지 않았다 — 실측: 500만 스텝 잡기 0~2%)
         public float fallPenalty = 1f;       // 넘어짐 — 판이 끝난다
-        public float standReward = 0.0005f;  // 서 있는 동안 매 스텝 × 서 있는 정도 (60초 다 받아도 1.5 — 성공 3보다 작게)
+        public float standReward = 0.0003f;  // 서 있는 동안 매 스텝 × 서 있는 정도 (60초 다 받아도 0.9 — 가만히 서 있기가 잡기보다 이득이 되지 않게)
         public float maxJointTorque = 300f;  // 관절 모터 힘 상한 (5장과 같다)
 
         // 실측으로 정한 값
         const float TableTop = 1.06f;        // 작업대 윗면 높이. 서서 팔을 앞으로 뻗은 높이(약 1.16)에 상자 가운데가 오게
         const float BoxHalf = 0.10f;         // 상자 높이의 절반
+        const float SideOffset = 0.19f;      // 상자 가운데 → 옆면 바깥 (너비 절반 0.15 + 아래팔 두께 절반 0.035) — 아래팔이 갈 자리
         const float LiftHeight = 0.08f;      // 작업대보다 이만큼 들면 "들었다"
         const float PlaceRadius = 0.15f;     // 놓을 자리 가운데에서 이 안이면 성공
         const float MaxStepReward = 0.05f;   // 한 스텝 진전 보상 상한 (RobotArms 와 같다)
@@ -50,7 +52,7 @@ namespace Humanoid
         readonly float[] _best = new float[3];   // 단계별 지금까지 가장 가까웠던 거리
         bool _grasped, _lifted;
         bool _graspPaid, _liftPaid;          // 이번 판에 잡기 · 들기 보상을 줬나 (판에 한 번씩만)
-        int _restSteps, _liftSteps;
+        int _restSteps, _liftSteps, _graspSteps;
 
         // 판 결과 (성적표 · 표시)
         enum Result { None, Success, Dropped, Fell, TimeOut }
@@ -96,7 +98,7 @@ namespace Humanoid
             System.Array.Clear(_lastActions, 0, _lastActions.Length);
             _actionChange = 0f;
             _grasped = _lifted = false;
-            _restSteps = _liftSteps = 0;
+            _restSteps = _liftSteps = _graspSteps = 0;
             _result = Result.TimeOut;    // 끝날 때까지 다른 결과가 없으면 시간 초과
             _gait.Clear();
             _best[0] = _best[1] = _best[2] = float.MaxValue;
@@ -171,8 +173,9 @@ namespace Humanoid
             box.Show(_lifted);
 
             float r = 0f;
-            if (_grasped && !_graspPaid) { r += graspReward; _graspPaid = true; }
-            // 들기 보상은 0.5초 동안 들고 있어야 준다 — 순간 들어 올렸다 놓치기로는 못 받게
+            // 잡기 · 들기 보상은 잠깐 유지해야 준다 — 건드려 떨어뜨리기 · 순간 들어 올렸다 놓치기로는 못 받게
+            _graspSteps = _grasped ? _graspSteps + 1 : 0;
+            if (_graspSteps >= 15 && !_graspPaid) { r += graspReward; _graspPaid = true; }
             _liftSteps = _lifted ? _liftSteps + 1 : 0;
             if (_liftSteps >= 25 && !_liftPaid) { r += liftReward; _liftPaid = true; }
 
@@ -233,10 +236,17 @@ namespace Humanoid
             return PlaceSpot + Vector3.up * (LiftHeight + 0.02f) * far;
         }
 
+        // 잡기 전: 두 아래팔이 상자 양옆 자리에서 얼마나 먼가 (어느 쪽에서 다가가든 가까운 짝으로).
+        // 손 가운데를 상자 가운데로 끌면 팔 끝을 상자 앞에 모으기만 해도 가까워져, 옆을 감싸는 법을 못 배웠다.
+        // 잡은 뒤: 상자가 가야 할 점에서 얼마나 먼가.
         float GoalDistance()
         {
-            Vector3 from = _grasped ? box.transform.position : Hands;
-            return Vector3.Distance(from, GoalPoint());
+            if (_grasped) return Vector3.Distance(box.transform.position, GoalPoint());
+            Vector3 side = box.transform.right * SideOffset;
+            Vector3 l = _forearmL.transform.position, r = _forearmR.transform.position, b = box.transform.position;
+            float straight = Vector3.Distance(l, b - side) + Vector3.Distance(r, b + side);
+            float crossed = Vector3.Distance(l, b + side) + Vector3.Distance(r, b - side);
+            return Mathf.Min(straight, crossed) * 0.5f;
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
