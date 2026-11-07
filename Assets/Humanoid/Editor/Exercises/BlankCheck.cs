@@ -384,9 +384,13 @@ namespace HumanoidEditor
                 ("15판 모두 성공 → 그대로 0", () => { using (var f = new Fix(4)) return (0f, (float)Levels(f, 15, 0)); }));
             Add("6-3", "올린 뒤에는 기록을 비운다", "level++ 다음에 _recent.Clear(). 안 비우면 새 단계에서 한 판만 성공해도 또 오른다.",
                 ("올린 뒤 19판 더 성공 → 1 그대로", () => { using (var f = new Fix(4)) { Levels(f, 20, 0); return (1f, (float)Levels(f, 19, 0)); } }));
-            Add("6-3", "끄거나 마지막 단계면 그대로", "autoLevel 이 false 이거나 level 이 마지막(Levels.Length - 1)이면 올리지 않는다.",
+            Add("6-3", "20판 중 3판 이하 성공이면 한 단계 내린다", "성공이 3 이하이고 level > 0 이면 level-- 하고 _recent.Clear(). 못 하는 단계에 갇히지 않게.",
+                ("난이도 3 에서 성공 3 · 실패 17 → 2", () => { using (var f = new Fix(4)) { f.carry.level = 3; return (2f, (float)Levels(f, 3, 17)); } }),
+                ("난이도 3 에서 성공 4 · 실패 16 (경계) → 3 그대로", () => { using (var f = new Fix(4)) { f.carry.level = 3; return (3f, (float)Levels(f, 4, 16)); } }),
+                ("난이도 0 에서 모두 실패 (경계) → 0 그대로", () => { using (var f = new Fix(4)) return (0f, (float)Levels(f, 0, 20)); }));
+            Add("6-3", "끄거나 마지막 단계면 그대로", "autoLevel 이 false 이면 바꾸지 않는다. level 이 마지막(Levels.Length - 1)이면 더 올리지 않는다.",
                 ("autoLevel 끔 → 그대로 0", () => { using (var f = new Fix(4)) { f.carry.autoLevel = false; return (0f, (float)Levels(f, 20, 0)); } }),
-                ("마지막 단계 5 (경계) → 5 그대로", () => { using (var f = new Fix(4)) { f.carry.level = 5; return (5f, (float)Levels(f, 20, 0)); } }));
+                ("마지막 단계 6 (경계) → 6 그대로", () => { using (var f = new Fix(4)) { f.carry.level = 6; return (6f, (float)Levels(f, 20, 0)); } }));
         }
 
         // 6-2: 상자를 놓을 자리(+offset)에 두고 Placed 를 steps 번 부른다. 마지막 결과를 돌려준다

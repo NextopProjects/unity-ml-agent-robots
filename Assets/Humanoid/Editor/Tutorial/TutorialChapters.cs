@@ -1016,21 +1016,22 @@ namespace HumanoidEditor
                 explain = "조건이 한 스텝이라도 깨지면 0 부터 다시 센다 — \"0.5초 동안 계속\" 이 그래서 된다.\n높이 조건이 없으면 상자를 든 채 자리 위에 서 있어도, 멈춤 조건이 없으면 굴러가며 지나가도 성공이 된다.",
                 answer = "Vector3 p = box.transform.position;\nbool onSpot = Flat(p - PlaceSpot).magnitude < PlaceRadius && Mathf.Abs(p.y - PlaceSpot.y) < 0.03f;\nbool still = box.rb.linearVelocity.magnitude < 0.1f;\nbool released = !box.touchL && !box.touchR;\n_restSteps = onSpot && still && released ? _restSteps + 1 : 0;\nreturn _restSteps >= 25;" });
 
-            ch.steps.Add(new Step { title = "실습 6-3  성공률로 난이도 올리기", blank = "6-3",
-                goal = "최근 20판 중 14판 이상 성공하면 다음 난이도로 올린다",
+            ch.steps.Add(new Step { title = "실습 6-3  성공률로 난이도 조절", blank = "6-3",
+                goal = "최근 20판 중 14판 이상 성공하면 다음 난이도로 올리고, 3판 이하면 앞 난이도로 내린다",
                 concept = "CarryAgent.LevelUp(success) — 판이 끝날 때마다 그 판의 성공 여부를 넣어 부른다.\n" +
                           "난이도(Levels): 0 = 상자가 몸 바로 앞 0.45m · 놓을 자리는 그 바로 옆 0.4m (상자까지는 걷지 않고 팔이 닿는다)\n" +
-                          "                1 = 0.45m · 옆 0.8m    2 = 0.8m · ±15° · 0.8m    3 = 1.2m · ±30° · 1.2m    4 = 2.0m · ±90° · 2.0m    5 = 3.5m · 사방 · 3.0m\n" +
+                          "                1 = 옆 0.6m    2 = 옆 0.8m    3 = 0.8m · ±15° · 0.8m    4 = 1.2m · ±30° · 1.2m    5 = 2.0m · ±90° · 2.0m    6 = 3.5m · 사방 · 3.0m\n" +
                           "쓸 수 있는 것: _recent (Queue<bool>, 최근 판들의 성공 여부) · level · autoLevel · Levels.Length\n\n" +
                           "왜 yaml 커리큘럼(5장)을 안 쓰나? yaml 은 보상 크기로만 단계를 넘긴다. 처음 학습에서 성공 0 인데도 보상이 기준을 넘어\n" +
-                          "단계가 올라갔고, 걷지도 못하는 몸에 2m 떨어진 상자가 주어져 넘어짐 99% 가 됐다 (실측). 진짜 목표(성공)로 정한다.",
+                          "단계가 올라갔고, 걷지도 못하는 몸에 2m 떨어진 상자가 주어져 넘어짐 99% 가 됐다 (실측). 진짜 목표(성공)로 정한다.\n" +
+                          "내리기도 둔다 — 없으면 못 하는 단계에 갇혀 배운 것까지 잊는다 (실측: 난이도가 오른 뒤 성공 32% → 5%).",
                 hints = new[] {
-                    "최근 20개만 들고 있는 줄을 생각한다: 넣고, 20개를 넘으면 가장 오래된 것을 뺀다. 20개가 찼을 때 성공이 14개 이상이면 올린다.",
-                    "① _recent.Enqueue(success), 20 넘으면 Dequeue\n② 끔 · 마지막 단계 · 20개 안 됨이면 return\n③ 성공 수 n 을 센다 — 14 미만이면 return\n④ level++, _recent.Clear()",
-                    "if (!autoLevel || level >= Levels.Length - 1 || _recent.Count < 20) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n < 14) return;\nlevel++;\n_recent.Clear();" },
-                skeleton = "_recent.Enqueue(success);\nif (_recent.Count > ___) _recent.Dequeue();\nif (!autoLevel || level >= Levels.Length - 1 || _recent.Count < ___) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n < ___) return;\nlevel++;\n_recent.___();",
-                explain = "올린 뒤 줄을 비우지 않으면, 새 단계에서 처음 한 판만 성공해도 이전 단계의 성공 기록 때문에 또 오른다.\n에이전트(영역)마다 따로 센다 — 잘하는 영역부터 먼저 어려워진다. TensorBoard 의 Carry/Level 이 평균 난이도다.",
-                answer = "_recent.Enqueue(success);\nif (_recent.Count > 20) _recent.Dequeue();\nif (!autoLevel || level >= Levels.Length - 1 || _recent.Count < 20) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n < 14) return;\nlevel++;\n_recent.Clear();" });
+                    "최근 20개만 들고 있는 줄을 생각한다: 넣고, 20개를 넘으면 가장 오래된 것을 뺀다. 20개가 찼을 때 성공이 14개 이상이면 올리고, 3개 이하면 내린다.",
+                    "① _recent.Enqueue(success), 20 넘으면 Dequeue\n② 끔 · 20개 안 됨이면 return\n③ 성공 수 n 을 센다\n④ n ≥ 14 이고 마지막 단계가 아니면 level++ · 비우기\n⑤ 아니고 n ≤ 3 이고 level > 0 이면 level-- · 비우기",
+                    "int n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n >= 14 && level < Levels.Length - 1) { level++; _recent.Clear(); }\nelse if (n <= 3 && level > 0) { level--; _recent.Clear(); }" },
+                skeleton = "_recent.Enqueue(success);\nif (_recent.Count > ___) _recent.Dequeue();\nif (!autoLevel || _recent.Count < ___) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n >= ___ && level < Levels.Length - 1) { level++; _recent.Clear(); }\nelse if (n <= ___ && level > 0) { level___; _recent.Clear(); }",
+                explain = "올리거나 내린 뒤 줄을 비우지 않으면, 새 단계에서 한 판만 결과가 나와도 이전 단계의 기록 때문에 또 바뀐다.\n에이전트(영역)마다 따로 센다 — 영역마다 자기에게 맞는 난이도에 머문다. TensorBoard 의 Carry/Level 이 평균 난이도다.",
+                answer = "_recent.Enqueue(success);\nif (_recent.Count > 20) _recent.Dequeue();\nif (!autoLevel || _recent.Count < 20) return;\nint n = 0;\nforeach (bool s in _recent) if (s) n++;\nif (n >= 14 && level < Levels.Length - 1) { level++; _recent.Clear(); }\nelse if (n <= 3 && level > 0) { level--; _recent.Clear(); }" });
 
             s = new Step { title = "병렬 학습", goal = "학습 영역을 9개로 복제한다",
                 concept = "5장과 같다. 작업대 · 상자도 HumanoidArea 안에 있어서 같이 복제된다 — 1장에서 모든 것을 한 영역에 담은 이유.\n" +
