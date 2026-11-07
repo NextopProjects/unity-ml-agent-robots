@@ -54,6 +54,8 @@ namespace HumanoidEditor
 
         // 작업대: 윗면 높이 1.06 (서서 팔을 앞으로 뻗은 높이에 상자 가운데가 오게).
         // 움직이지 않는(kinematic) Rigidbody 를 단다 — Rigidbody 가 없으면 BodyPart 가 "바닥"으로 보아, 팔이 닿기만 해도 넘어짐이 된다.
+        // 윗면: 상자 작업대 0.25 · 놓을 작업대 0.5. 놓을 작업대가 상자(0.30)보다 좁으면 거의 맞게 내려놓아도
+        // 모서리에 걸쳤다가 떨어진다 (실측: 놓을 자리에서 25cm 옆에 내려놓고 4초 뒤 미끄러져 '떨어뜨림').
         public static Transform Table(Transform area, string name, Vector3 local)
         {
             var old = area.Find(name);
@@ -62,7 +64,8 @@ namespace HumanoidEditor
             t.name = name;
             t.transform.SetParent(area, false);
             t.transform.localPosition = local + Vector3.up * 0.53f;
-            t.transform.localScale = new Vector3(0.25f, 1.06f, 0.25f);
+            float top = name == "PlaceTable" ? 0.5f : 0.25f;
+            t.transform.localScale = new Vector3(top, 1.06f, top);
             t.GetComponent<Renderer>().sharedMaterial = Mat("M_CarryTable", new Color(0.45f, 0.4f, 0.35f));
             t.AddComponent<Rigidbody>().isKinematic = true;
             Undo.RegisterCreatedObjectUndo(t, name);
@@ -76,7 +79,7 @@ namespace HumanoidEditor
             m.name = "PlaceMarker";
             m.transform.SetParent(place, false);
             m.transform.localPosition = new Vector3(0f, 0.5f, 0f);
-            m.transform.localScale = new Vector3(1.2f, 0.005f, 1.2f);     // 부모(0.25 × 1.06 × 0.25) 기준 → 지름 0.3
+            m.transform.localScale = new Vector3(0.3f / place.localScale.x, 0.005f, 0.3f / place.localScale.z);     // 부모 크기로 나눠 지름 0.3 (= 성공 반경 0.15)
             m.GetComponent<Renderer>().sharedMaterial = Mat("M_PlaceMarker", Color.gray);
             Object.DestroyImmediate(m.GetComponent<Collider>());
             Undo.RegisterCreatedObjectUndo(m, "놓을 자리 표시");

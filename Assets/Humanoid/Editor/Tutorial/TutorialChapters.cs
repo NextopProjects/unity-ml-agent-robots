@@ -946,7 +946,8 @@ namespace HumanoidEditor
                           "윗면 높이 1.06 = 팔을 앞으로 뻗은 높이(약 1.16)에 상자 가운데가 오는 높이 (실측).\n\n" +
                           "★ Rigidbody 를 달고 Is Kinematic 을 켠다. BodyPart 는 Rigidbody 가 없는 것을 \"바닥\"으로 본다 —\n" +
                           "   그대로 두면 팔이 작업대에 닿기만 해도 넘어짐이 되어 판이 끝난다. Kinematic = 움직이지 않는 Rigidbody.\n" +
-                          "에이전트가 판마다 두 작업대를 옮긴다(놓을 작업대는 상자 작업대 둘레의 후보 6곳 중 하나).",
+                          "에이전트가 판마다 두 작업대를 옮긴다(놓을 작업대는 상자 작업대 둘레의 후보 6곳 중 하나).\n" +
+                          "놓을 작업대는 윗면이 0.5 × 0.5 로 넓다 — 상자(0.30)보다 좁으면 거의 맞게 내려놓아도 모서리에 걸쳤다 떨어진다 (실측).",
                 solve = () => { Ch6_Carry.Table(T(Area), "PickTable", new Vector3(0f, 0f, 0.45f)); Ch6_Carry.Marker(Ch6_Carry.Table(T(Area), "PlaceTable", new Vector3(0.8f, 0f, 0.45f))); } };
             s.Do("HumanoidArea 아래에 Cube, 이름 PickTable", () => ChildOf(PickTable, Area)).Hier(Area, "우클릭 ▸ 3D Object ▸ Cube ▸ 이름 PickTable");
             s.Do("Position (0, 0.53, 0.45) · Scale (0.25, 1.06, 0.25)", () => LocalPos(PickTable, new Vector3(0f, 0.53f, 0.45f)) && Near(T(PickTable).localScale, new Vector3(0.25f, 1.06f, 0.25f))).Insp(PickTable, typeof(Transform), "Position · Scale");
