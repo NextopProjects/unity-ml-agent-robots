@@ -21,10 +21,13 @@ namespace Humanoid
         public Renderer placeMarker;         // 놓을 자리 표시. 지난 판 결과를 색으로 보여 준다
 
         [Header("난이도 — 최근 20판 성공률이 70% 를 넘으면 스스로 한 단계 올린다")]
-        public int level;                    // 0 ~ 3
+        public int level;                    // 0 ~ 5
         public bool autoLevel = true;        // 끄면 level 고정 (평가할 때)
-        // 단계별 (상자까지 거리 m, 상자 방향 ±도, 상자 작업대 → 놓을 작업대 m). 0 = 걷지 않고 팔이 닿는다
-        static readonly Vector3[] Levels = { new Vector3(0.45f, 0f, 0.4f), new Vector3(1.0f, 30f, 1.2f), new Vector3(2.0f, 90f, 2.0f), new Vector3(3.5f, 180f, 3.0f) };
+        // 단계별 (상자까지 거리 m, 상자 방향 ±도, 상자 작업대 → 놓을 작업대 m). 0 · 1 = 상자까지 걷지 않고 팔이 닿는다
+        // 잘게 나눈다: 0(옆 0.4) → 1.0m · 1.2m 로 한 번에 올렸더니 성공 33% → 9% 로 무너졌다 (실측)
+        static readonly Vector3[] Levels = {
+            new Vector3(0.45f, 0f, 0.4f), new Vector3(0.45f, 0f, 0.8f), new Vector3(0.8f, 15f, 0.8f),
+            new Vector3(1.2f, 30f, 1.2f), new Vector3(2.0f, 90f, 2.0f), new Vector3(3.5f, 180f, 3.0f) };
 
         [Header("보상")]
         public float graspReward = 1f;       // 처음 0.3초 동안 양팔로 잡고 있었을 때 (판에 한 번)
@@ -48,7 +51,7 @@ namespace Humanoid
                                              // (실측: 1배일 때 1000만 스텝 동안 들고 서 있다가 시간 초과가 대부분)
         const float LiftWeight = 5f;         // 들기 단계는 거리가 8cm 뿐이라 다가간 보상을 5배로 (안 그러면 0.1점 — 실측: 500만 스텝까지 들기 0%)
         static readonly float[] PlaceAngles = { -120f, -90f, -60f, 60f, 90f, 120f };   // 놓을 자리 후보 (상자 작업대 둘레, 몸 쪽에서 잰 각도)
-        // 난이도 0 은 바로 옆(±90°)만. 거리가 짧을 때 ±60° 는 몸의 엉덩이 옆이 되어, 상자를 들고 돌아서야만 놓을 수 있다
+        // 난이도 0 · 1 은 바로 옆(±90°)만. 거리가 짧을 때 ±60° 는 몸의 엉덩이 옆이 되어, 상자를 들고 돌아서야만 놓을 수 있다
         // (실측: 놓을 자리가 골반 옆 0.43m — 1300만 스텝 동안 상자를 든 채 작업대 위에 서 있기만 했다)
         static readonly float[] SideAngles = { -90f, 90f };
 
@@ -121,7 +124,7 @@ namespace Humanoid
             pickTable.position = new Vector3(pick.x, origin.y + TableTop * 0.5f, pick.z);
 
             Vector3 back = (origin - pick).normalized;      // 상자 작업대에서 몸 쪽
-            float[] angles = level == 0 ? SideAngles : PlaceAngles;
+            float[] angles = level <= 1 ? SideAngles : PlaceAngles;
             Vector3 dir = Quaternion.Euler(0f, angles[Random.Range(0, angles.Length)], 0f) * back;
             Vector3 place = pick + new Vector3(dir.x, 0f, dir.z).normalized * lv.z;
             placeTable.position = new Vector3(place.x, origin.y + TableTop * 0.5f, place.z);

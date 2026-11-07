@@ -386,7 +386,7 @@ namespace HumanoidEditor
                 ("올린 뒤 19판 더 성공 → 1 그대로", () => { using (var f = new Fix(4)) { Levels(f, 20, 0); return (1f, (float)Levels(f, 19, 0)); } }));
             Add("6-3", "끄거나 마지막 단계면 그대로", "autoLevel 이 false 이거나 level 이 마지막(Levels.Length - 1)이면 올리지 않는다.",
                 ("autoLevel 끔 → 그대로 0", () => { using (var f = new Fix(4)) { f.carry.autoLevel = false; return (0f, (float)Levels(f, 20, 0)); } }),
-                ("마지막 단계 3 (경계) → 3 그대로", () => { using (var f = new Fix(4)) { f.carry.level = 3; return (3f, (float)Levels(f, 20, 0)); } }));
+                ("마지막 단계 5 (경계) → 5 그대로", () => { using (var f = new Fix(4)) { f.carry.level = 5; return (5f, (float)Levels(f, 20, 0)); } }));
         }
 
         // 6-2: 상자를 놓을 자리(+offset)에 두고 Placed 를 steps 번 부른다. 마지막 결과를 돌려준다
