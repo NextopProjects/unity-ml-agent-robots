@@ -83,6 +83,18 @@ namespace HumanoidEditor
             return m.GetComponent<Renderer>();
         }
 
+        // 상자 겉면: 마찰 1.0 (고무를 씌운 상자). 기본값 0.6 이면 들고 옮기는 동안 몸이 흔들려 양팔 사이에서 미끄러진다
+        // (실측: 옮기는 판의 30~47% 가 떨어뜨림으로 끝났다). Maximum — 닿은 쪽 중 큰 마찰을 쓴다.
+        public static PhysicsMaterial Grip()
+        {
+            const string path = "Assets/Humanoid/Materials/PM_CarryBox.asset";
+            var m = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
+            if (m != null) return m;
+            m = new PhysicsMaterial("PM_CarryBox") { staticFriction = 1f, dynamicFriction = 1f, frictionCombine = PhysicsMaterialCombine.Maximum };
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
         // 상자 0.30 × 0.20 × 0.20 · 1kg. 양팔 사이(아래팔 안쪽 간격 약 0.39)에 조여서 들 수 있는 너비 (실측: 0.26~0.34, 1~2kg 버팀)
         public static CarryBox Box(Transform area)
         {
@@ -95,6 +107,7 @@ namespace HumanoidEditor
             b.transform.localScale = new Vector3(0.30f, 0.20f, 0.20f);
             b.GetComponent<Renderer>().sharedMaterial = Mat("M_CarryBox", new Color(0.95f, 0.6f, 0.2f));
             b.AddComponent<Rigidbody>().mass = 1f;
+            b.GetComponent<Collider>().sharedMaterial = Grip();
             var box = b.AddComponent<CarryBox>();
             Undo.RegisterCreatedObjectUndo(b, "상자");
             return box;

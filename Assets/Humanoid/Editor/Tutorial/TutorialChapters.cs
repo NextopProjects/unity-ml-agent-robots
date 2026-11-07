@@ -957,11 +957,15 @@ namespace HumanoidEditor
             s = new Step { title = "상자", goal = "양팔로 끼워 들 상자를 만든다",
                 concept = "상자 0.30 × 0.20 × 0.20 · 1kg. 손이 없어서 두 아래팔로 양옆을 조여 마찰로 든다.\n" +
                           "실측(받침대를 치워 봄): 너비 0.26~0.34 · 1~2kg 을 조이면 버틴다. 조이지 않으면 떨어진다 — 붙잡는 힘은 마찰뿐.\n" +
+                          "겉면에 마찰 1.0 재질(PM_CarryBox, 고무를 씌운 상자)을 붙인다. 기본 0.6 이면 들고 옮기는 동안 몸이 흔들려 미끄러진다\n" +
+                          "  (실측: 옮기는 판의 30~47% 가 떨어뜨림으로 끝났다). 그래도 잡는 힘은 마찰뿐이다.\n" +
                           "Carry Box 스크립트가 어느 아래팔이 닿았는지 기록하고 색으로 보여 준다 (주황 그대로 · 노랑 잡음 · 초록 들어 올림).\n" +
                           "상자를 붙이거나 옮기는 코드는 어디에도 없다.",
                 solve = () => Ch6_Carry.Box(T(Area)) };
             s.Do("HumanoidArea 아래에 Cube, 이름 Box · Position (0, 1.16, 0.45) · Scale (0.3, 0.2, 0.2)", () => ChildOf(BoxPath, Area) && LocalPos(BoxPath, new Vector3(0f, 1.16f, 0.45f)) && Near(T(BoxPath).localScale, new Vector3(0.3f, 0.2f, 0.2f))).Insp(BoxPath, typeof(Transform), "Position · Scale");
             s.Do("Add Component > Rigidbody, Mass 1", () => Has<Rigidbody>(BoxPath) && Near(Get<Rigidbody>(BoxPath).mass, 1f)).Insp(BoxPath, typeof(Rigidbody), "Mass");
+            s.Do("Box Collider 의 Material 에 마찰 재질(PM_CarryBox)을 넣는다", () => Has<BoxCollider>(BoxPath) && Get<BoxCollider>(BoxPath).sharedMaterial != null && Get<BoxCollider>(BoxPath).sharedMaterial.dynamicFriction >= 0.99f,
+                "재질 넣기", () => Set<BoxCollider>(BoxPath, c => c.sharedMaterial = Ch6_Carry.Grip())).Insp(BoxPath, typeof(BoxCollider), "Material ← PM_CarryBox");
             ch.steps.Add(s.Do("Add Component > Carry Box", () => Has<CarryBox>(BoxPath)).Insp(BoxPath, typeof(CarryBox), "Add Component ▸ Carry Box"));
 
             ch.steps.Add(new Step { title = "실습 6-1  어느 팔이 닿았나", blank = "6-1",
