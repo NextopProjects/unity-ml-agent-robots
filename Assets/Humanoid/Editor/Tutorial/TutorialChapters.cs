@@ -1043,7 +1043,8 @@ namespace HumanoidEditor
                 concept = "humanoid_carry_config.yaml — 걷기와 같은 신경망 · 3000만 스텝. 처음부터 학습한다(관측 수가 달라 5장 모델을 이어 쓸 수 없다).\n" +
                           "File > Build Profiles 로 빌드한 뒤:\n  mlagents-learn Assets/Humanoid/humanoid_carry_config.yaml --run-id=carry --env=<빌드>.exe --no-graphics --num-envs=3\n\n" +
                           "TensorBoard 에서 볼 것: Carry/Grasped → Carry/Lifted → Carry/Success 가 차례로 오르는가, Carry/Level, Carry/Dropped · Carry/Fell.\n\n" +
-                          "(학습 진행 중 — 결과가 나오면 채운다)",
+                          "실측(10번 이어 학습 · 각 300만~1000만 스텝, 지금까지의 기록은 문서 06): 잡기 → 들기 → 성공 순으로 올랐다.\n" +
+                          "  10번째 학습 500만 스텝: 학습 중 성공 0.51 · 떨어뜨림 0.37 · 넘어짐 0.03 · 평균 난이도 0.5. 걸어가서 집기(난이도 3 이상)는 아직이다.",
                 hint = "잡기만 오르고 들기가 0 이면 들기 단계 보상(LiftWeight)을, 아무것도 안 잡고 서 있기만 하면 서기 보상(Stand Reward)이 너무 큰지 본다." };
             s.Do("yaml 을 열어 읽는다", null, "yaml 열기", () => EditorUtility.OpenWithDefaultApp("Assets/Humanoid/humanoid_carry_config.yaml"));
             s.Do("빌드한다 (씬 하나만 넣는다)");
@@ -1054,7 +1055,8 @@ namespace HumanoidEditor
                 concept = "메뉴 Humanoid > 집어서 옮기기 평가 — 같은 씨앗으로 20판을 돌려 성적표를 찍는다. Carry Agent 의 Auto Level 을 끄고 Level 을 골라 단계별로 잰다.\n" +
                           "보는 것: 성공률 · 잡기 · 들기 · 떨어뜨림 · 넘어짐 · 시간 초과 · 배치 오차(성공한 판의 상자 ↔ 자리 거리) · 걸린 시간 · 몸통 기울기.\n" +
                           "놓을 자리 원판의 색 = 지난 판 결과: 초록 성공 · 빨강 떨어뜨림 · 주황 넘어짐 · 회색 시간 초과.\n\n" +
-                          "(학습 진행 중 — 결과가 나오면 채운다)",
+                          "실측(500만 스텝 모델 · 20판씩): 난이도 0 성공 75% (배치 오차 8cm · 넘어짐 0) · 난이도 1 15% · 난이도 2 · 3 은 0%.\n" +
+                          "  바로 옆으로 옮겨 놓기는 되고, 멀리 옮기기 · 걸어가서 집기는 아직 못 한다 (학습 계속 중).",
                 done = "휴머노이드 트랙 끝! 걷고, 걸어가서 집고, 옮겨 놓는 정책까지 만들고 성공률로 평가했다." };
             s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼");
             s.Do("Model 칸에 학습된 .onnx 를 넣고 Inference Only 로", () => Brain != null && Brain.Model != null && IsBehavior(BehaviorType.InferenceOnly), "Inference Only", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Model · Behavior Type");
