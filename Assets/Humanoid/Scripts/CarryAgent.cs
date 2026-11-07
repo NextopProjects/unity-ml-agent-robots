@@ -24,12 +24,13 @@ namespace Humanoid
         public int level;                    // 0 ~ 3
         public bool autoLevel = true;        // 끄면 level 고정 (평가할 때)
         // 단계별 (상자까지 거리 m, 상자 방향 ±도, 상자 작업대 → 놓을 작업대 m). 0 = 걷지 않고 팔이 닿는다
-        static readonly Vector3[] Levels = { new Vector3(0.45f, 0f, 0.8f), new Vector3(1.0f, 30f, 1.2f), new Vector3(2.0f, 90f, 2.0f), new Vector3(3.5f, 180f, 3.0f) };
+        static readonly Vector3[] Levels = { new Vector3(0.45f, 0f, 0.5f), new Vector3(1.0f, 30f, 1.2f), new Vector3(2.0f, 90f, 2.0f), new Vector3(3.5f, 180f, 3.0f) };
 
         [Header("보상")]
         public float graspReward = 1f;       // 처음 0.3초 동안 양팔로 잡고 있었을 때 (판에 한 번)
         public float liftReward = 1f;        // 처음 0.5초 동안 들고 있었을 때 (판에 한 번)
-        public float placeReward = 3f;       // 놓기 성공 — 판이 끝난다
+        public float setDownReward = 1f;     // 처음 상자를 놓을 자리 작업대 위에 멈춰 놓았을 때 (판에 한 번). 아직 쥐고 있어도 준다
+        public float placeReward = 3f;       // 놓기 성공(놓고 팔까지 뗌) — 판이 끝난다
         public float dropPenalty = 1f;       // 상자를 바닥에 떨어뜨림 — 판이 끝난다
                                              // (2 로 했더니 상자를 아예 건드리지 않았다 — 실측: 500만 스텝 잡기 0~2%)
         public float fallPenalty = 1f;       // 넘어짐 — 판이 끝난다
@@ -43,6 +44,8 @@ namespace Humanoid
         const float LiftHeight = 0.08f;      // 작업대보다 이만큼 들면 "들었다"
         const float PlaceRadius = 0.15f;     // 놓을 자리 가운데에서 이 안이면 성공
         const float MaxStepReward = 0.05f;   // 한 스텝 진전 보상 상한 (RobotArms 와 같다)
+        const float CarryWeight = 3f;        // 옮기기 단계도 3배 — 0.5~3m 를 들고 가는 동안 떨어뜨릴 위험(−1)보다 커야 옮기러 나선다
+                                             // (실측: 1배일 때 1000만 스텝 동안 들고 서 있다가 시간 초과가 대부분)
         const float LiftWeight = 5f;         // 들기 단계는 거리가 8cm 뿐이라 다가간 보상을 5배로 (안 그러면 0.1점 — 실측: 500만 스텝까지 들기 0%)
         static readonly float[] PlaceAngles = { -120f, -90f, -60f, 60f, 90f, 120f };   // 놓을 자리 후보 (상자 작업대 둘레)
 
@@ -51,7 +54,7 @@ namespace Humanoid
         float _actionChange;
         readonly float[] _best = new float[3];   // 단계별 지금까지 가장 가까웠던 거리
         bool _grasped, _lifted;
-        bool _graspPaid, _liftPaid;          // 이번 판에 잡기 · 들기 보상을 줬나 (판에 한 번씩만)
+        bool _graspPaid, _liftPaid, _setDownPaid;          // 이번 판에 잡기 · 들기 보상을 줬나 (판에 한 번씩만)
         int _restSteps, _liftSteps, _graspSteps;
 
         // 판 결과 (성적표 · 표시)
@@ -187,7 +190,7 @@ namespace Humanoid
             if (_best[stage] == float.MaxValue) _best[stage] = d;
             else if (d < _best[stage])
             {
-                progress = Mathf.Min(_best[stage] - d, MaxStepReward) * (stage == 1 ? LiftWeight : 1f);
+                progress = Mathf.Min(_best[stage] - d, MaxStepReward) * (stage == 1 ? LiftWeight : stage == 2 ? CarryWeight : 1f);
                 _best[stage] = d;
             }
             // 다가간 보상만 자세 · 떨림만큼 깎는다 (5장과 같은 생각: 숙이고 덜덜 떨며 가면 덜 받는다)
@@ -203,6 +206,8 @@ namespace Humanoid
                 EndEpisode();
                 return 0f;
             }
+            // 내려놓기: 쥐고 있어도, 놓을 자리 작업대 위에 멈춰 놓으면 한 번. 그다음 팔을 떼는 것은 성공 보상이 이끈다
+            if (!_setDownPaid && OnSpot() && box.rb.linearVelocity.magnitude < 0.1f) { r += setDownReward; _setDownPaid = true; }
             if (Placed())
             {
                 _result = Result.Success;
@@ -224,6 +229,13 @@ namespace Humanoid
             bool released = !box.touchL && !box.touchR;
             _restSteps = onSpot && still && released ? _restSteps + 1 : 0;
             return _restSteps >= 25;
+        }
+
+        // 상자가 놓을 자리 안 · 작업대 위에 있나 (멈췄는지 · 팔을 뗐는지는 안 본다)
+        bool OnSpot()
+        {
+            Vector3 p = box.transform.position;
+            return Flat(p - PlaceSpot).magnitude < PlaceRadius && Mathf.Abs(p.y - PlaceSpot.y) < 0.03f;
         }
 
         // 지금 가야 할 점: 잡기 전 = 상자(손으로), 잡았지만 안 듦 = 들어 올린 높이, 들었음 = 놓을 자리 위(가까울수록 낮게)
@@ -255,7 +267,7 @@ namespace Humanoid
 
         void RecordStats()
         {
-            if (_episodes++ == 0) { _graspPaid = _liftPaid = false; return; }     // 첫 판 전에는 기록이 없다
+            if (_episodes++ == 0) { _graspPaid = _liftPaid = _setDownPaid = false; return; }     // 첫 판 전에는 기록이 없다
             if (_result == Result.Success) _successes++;
             LevelUp(_result == Result.Success);
             Last = new Summary { result = _result.ToString(), grasped = _graspPaid, lifted = _liftPaid,
@@ -264,6 +276,7 @@ namespace Humanoid
             stats.Add("Carry/Success", _result == Result.Success ? 1f : 0f);
             stats.Add("Carry/Grasped", _graspPaid ? 1f : 0f);
             stats.Add("Carry/Lifted", _liftPaid ? 1f : 0f);
+            stats.Add("Carry/SetDown", _setDownPaid ? 1f : 0f);
             stats.Add("Carry/Dropped", _result == Result.Dropped ? 1f : 0f);
             stats.Add("Carry/Fell", _result == Result.Fell ? 1f : 0f);
             if (_result == Result.Success) stats.Add("Carry/PlaceError", _placeError);
@@ -281,7 +294,7 @@ namespace Humanoid
                 colors.SetColor("_Color", c);
                 placeMarker.SetPropertyBlock(colors);
             }
-            _graspPaid = _liftPaid = false;
+            _graspPaid = _liftPaid = _setDownPaid = false;
         }
 
         // 쉬운 단계를 잘하게 되면 다음 단계로. 보상 크기가 아니라 성공률로 정한다
