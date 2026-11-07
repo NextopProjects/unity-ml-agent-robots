@@ -946,8 +946,7 @@ namespace HumanoidEditor
                           "윗면 높이 1.06 = 팔을 앞으로 뻗은 높이(약 1.16)에 상자 가운데가 오는 높이 (실측).\n\n" +
                           "★ Rigidbody 를 달고 Is Kinematic 을 켠다. BodyPart 는 Rigidbody 가 없는 것을 \"바닥\"으로 본다 —\n" +
                           "   그대로 두면 팔이 작업대에 닿기만 해도 넘어짐이 되어 판이 끝난다. Kinematic = 움직이지 않는 Rigidbody.\n" +
-                          "에이전트가 판마다 두 작업대를 옮긴다(놓을 작업대는 상자 작업대 둘레의 후보 6곳 중 하나).\n" +
-                          "놓을 작업대는 윗면이 0.5 × 0.5 로 넓다 — 상자(0.30)보다 좁으면 거의 맞게 내려놓아도 모서리에 걸쳤다 떨어진다 (실측).",
+                          "에이전트가 판마다 두 작업대를 옮긴다(놓을 작업대는 상자 작업대 둘레의 후보 6곳 중 하나).",
                 solve = () => { Ch6_Carry.Table(T(Area), "PickTable", new Vector3(0f, 0f, 0.45f)); Ch6_Carry.Marker(Ch6_Carry.Table(T(Area), "PlaceTable", new Vector3(0.8f, 0f, 0.45f))); } };
             s.Do("HumanoidArea 아래에 Cube, 이름 PickTable", () => ChildOf(PickTable, Area)).Hier(Area, "우클릭 ▸ 3D Object ▸ Cube ▸ 이름 PickTable");
             s.Do("Position (0, 0.53, 0.45) · Scale (0.25, 1.06, 0.25)", () => LocalPos(PickTable, new Vector3(0f, 0.53f, 0.45f)) && Near(T(PickTable).localScale, new Vector3(0.25f, 1.06f, 0.25f))).Insp(PickTable, typeof(Transform), "Position · Scale");
@@ -1057,7 +1056,8 @@ namespace HumanoidEditor
                           "보는 것: 성공률 · 잡기 · 들기 · 떨어뜨림 · 넘어짐 · 시간 초과 · 배치 오차(성공한 판의 상자 ↔ 자리 거리) · 걸린 시간 · 몸통 기울기.\n" +
                           "놓을 자리 원판의 색 = 지난 판 결과: 초록 성공 · 빨강 떨어뜨림 · 주황 넘어짐 · 회색 시간 초과.\n\n" +
                           "실측(500만 스텝 모델 · 20판씩): 난이도 0 성공 75% (배치 오차 8cm · 넘어짐 0) · 난이도 1 15% · 난이도 2 · 3 은 0%.\n" +
-                          "  바로 옆으로 옮겨 놓기는 되고, 멀리 옮기기 · 걸어가서 집기는 아직 못 한다 (학습 계속 중).",
+                          "  바로 옆으로 옮겨 놓기는 되고, 멀리 옮기기 · 걸어가서 집기는 아직 못 한다.\n" +
+                          "직접 학습하지 않았으면 미리 학습해 둔 Assets/Humanoid/results/HumanoidCarry.onnx (이 모델) 를 써도 된다.",
                 done = "휴머노이드 트랙 끝! 걷고, 걸어가서 집고, 옮겨 놓는 정책까지 만들고 성공률로 평가했다." };
             s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼");
             s.Do("Model 칸에 학습된 .onnx 를 넣고 Inference Only 로", () => Brain != null && Brain.Model != null && IsBehavior(BehaviorType.InferenceOnly), "Inference Only", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Model · Behavior Type");
