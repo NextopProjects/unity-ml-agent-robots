@@ -1015,7 +1015,7 @@ namespace HumanoidEditor
             ch.steps.Add(new Step { title = "실습 6-3  성공률로 난이도 올리기", blank = "6-3",
                 goal = "최근 20판 중 14판 이상 성공하면 다음 난이도로 올린다",
                 concept = "CarryAgent.LevelUp(success) — 판이 끝날 때마다 그 판의 성공 여부를 넣어 부른다.\n" +
-                          "난이도(Levels): 0 = 상자가 몸 바로 앞 0.45m · 놓을 자리 0.5m 옆 (상자까지는 걷지 않고 팔이 닿는다)\n" +
+                          "난이도(Levels): 0 = 상자가 몸 바로 앞 0.45m · 놓을 자리는 그 바로 옆 0.4m (상자까지는 걷지 않고 팔이 닿는다)\n" +
                           "                1 = 1.0m · ±30° · 1.2m    2 = 2.0m · ±90° · 2.0m    3 = 3.5m · 사방 · 3.0m\n" +
                           "쓸 수 있는 것: _recent (Queue<bool>, 최근 판들의 성공 여부) · level · autoLevel · Levels.Length\n\n" +
                           "왜 yaml 커리큘럼(5장)을 안 쓰나? yaml 은 보상 크기로만 단계를 넘긴다. 처음 학습에서 성공 0 인데도 보상이 기준을 넘어\n" +
