@@ -103,8 +103,8 @@ namespace HumanoidEditor
                     carry = agent as CarryAgent;
                     var bp = root.GetComponent<BehaviorParameters>();
                     bp.BehaviorName = "Test";
-                    bp.BrainParameters.VectorObservationSize = kind == 4 ? 65 : kind >= 2 ? 51 : 48;
-                    bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(18);
+                    bp.BrainParameters.VectorObservationSize = kind == 4 ? 69 : kind >= 2 ? 51 : 48;
+                    bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(kind == 4 ? 20 : 18);
                     bp.BehaviorType = BehaviorType.HeuristicOnly;
                     agent.pushInterval = 0;
                     if (walk != null)

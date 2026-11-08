@@ -1,4 +1,5 @@
 using Humanoid;
+using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Policies;
 using UnityEditor;
 using UnityEngine;
@@ -21,7 +22,7 @@ namespace HumanoidEditor
             Marker(Table(area, "PlaceTable", new Vector3(0.8f, 0f, 0.45f)));
             Box(area);
             Agent(root);
-            Debug.Log("[Humanoid] 집어서 옮기기 — 관측 65 / 행동 18. mlagents-learn Assets/Humanoid/humanoid_carry_config.yaml --run-id=carry");
+            Debug.Log("[Humanoid] 집어서 옮기기 — 관측 69 / 행동 20. mlagents-learn Assets/Humanoid/humanoid_carry_config.yaml --run-id=carry");
         }
 
         // 걷기 에이전트 → 옮기기 에이전트. 상자 · 작업대 · 표시를 연결하고 두뇌 이름 · 관측 수를 바꾼다. 4~5장의 걷기 목표는 지운다.
@@ -44,10 +45,21 @@ namespace HumanoidEditor
             carry.pushInterval = 0;
             carry.MaxStep = 3000;        // 60초. 상자를 떨어뜨리거나 넘어지거나 성공하면 그 전에 끝난다
 
+            // 엉덩이 비틀기(Y) 축을 ±30° 로 푼다. 1~5장은 잠가 둔 축이다 — 상자를 든 채 돌려면 필요하다
+            foreach (var p in go.GetComponentsInChildren<Humanoid.BodyPart>())
+            {
+                if (p.name != "ThighL" && p.name != "ThighR") continue;
+                var j = p.GetComponent<ConfigurableJoint>();
+                Undo.RecordObject(j, "엉덩이 비틀기");
+                j.angularYMotion = ConfigurableJointMotion.Limited;
+                j.angularYLimit = new SoftJointLimit { limit = carry.hipYawRange };
+            }
+
             var bp = go.GetComponent<BehaviorParameters>();
             Undo.RecordObject(bp, "두뇌 설정");
             bp.BehaviorName = "HumanoidCarry";
-            bp.BrainParameters.VectorObservationSize = 65;   // 서기 48 + 상자 · 놓을 자리 17
+            bp.BrainParameters.VectorObservationSize = 69;                   // 서기 48 + 상자 · 놓을 자리 17 + 엉덩이 비틀기 4
+            bp.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(20);   // 관절 18 + 엉덩이 비틀기 2
 
             EditorUtility.SetDirty(go);
         }

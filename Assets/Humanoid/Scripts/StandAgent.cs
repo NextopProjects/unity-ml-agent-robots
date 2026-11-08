@@ -80,7 +80,7 @@ namespace Humanoid
         public override void Heuristic(in ActionBuffers actionsOut)
         {
             var c = actionsOut.ContinuousActions;
-            for (int i = 0; i < c.Length && _keyboard != null; i++) c[i] = _keyboard.actions[i];
+            for (int i = 0; i < c.Length && _keyboard != null && i < _keyboard.actions.Length; i++) c[i] = _keyboard.actions[i];
         }
     }
 }

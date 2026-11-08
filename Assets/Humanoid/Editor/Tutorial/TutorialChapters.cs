@@ -82,6 +82,9 @@ namespace HumanoidEditor
         const string Pelvis = Root + "/Pelvis";
         const string Torso = Pelvis + "/Torso";
         const string ThighL = Pelvis + "/ThighL";
+
+        // 엉덩이 비틀기 축을 풀었나 (집어서 옮기기에서만)
+        static bool HipYaw(string path) => J(path) != null && J(path).angularYMotion == ConfigurableJointMotion.Limited && Near(J(path).angularYLimit.limit, 30f);
         const string UpperArmL = Torso + "/UpperArmL";
         const string Target = Area + "/Target";
         const string PickTable = Area + "/PickTable";
@@ -983,7 +986,11 @@ namespace HumanoidEditor
                 answer = "if (part == \"ForearmL\") touchL = down;\nelse if (part == \"ForearmR\") touchR = down;" });
 
             s = new Step { title = "옮기기 에이전트로 바꾸기", goal = "Gait Agent 를 Carry Agent 로 바꾸고 상자 · 작업대를 연결한다",
-                concept = "Carry Agent 는 Stand Agent 를 상속한다 — 관측 48 · 행동 18 · 넘어지면 끝은 그대로, 상자 · 놓을 자리 관측 17개와 보상이 더해진다 (관측 65).\n" +
+                concept = "Carry Agent 는 Stand Agent 를 상속한다 — 관측 48 · 행동 18 · 넘어지면 끝은 그대로, 상자 · 놓을 자리 관측 17개와 보상이 더해진다.\n" +
+                          "몸에는 축이 하나 늘어난다: 엉덩이 비틀기(허벅지 관절 Angular Y, ±30°). 1~5장은 잠가 두었다.\n" +
+                          "  상자를 든 채 돌려면 디딘 발 위에서 몸을 비틀어야 한다 (실측: 두 엉덩이를 30° 비틀면 서 있는 채로 몸이 27° 돈다).\n" +
+                          "  비틀기가 없을 때는 바로 옆으로 옮기기만 되고, 들고 0.6m 넘게 걷거나 돌면 상자가 빠졌다.\n" +
+                          "  → 행동 18 + 비틀기 2 = 20 · 관측 48 + 17 + 비틀기 각도 · 속도 4 = 69.\n" +
                           "RobotArms 5장과 같은 구조: 단계마다 \"지금 가야 할 점\"이 바뀐다.\n" +
                           "  ① 두 아래팔을 상자 양옆으로  ② 잡고 들어 올린다  ③ 상자를 놓을 자리 위로  ④ 내려놓고 팔을 뗀다\n" +
                           "보상: 그 단계의 최고 기록(가장 가까웠던 거리)을 갱신할 때만 다가간 만큼(들기 ×5 · 옮기기 ×3) · 잡기 0.3초 +1 · 들기 0.5초 +1\n" +
@@ -995,7 +1002,8 @@ namespace HumanoidEditor
             s.Do("Gait Agent 를 지운다 (⋮ > Remove Component)", () => T(Root) != null && T(Root).GetComponents<StandAgent>().Length == 1).Insp(Root, typeof(GaitAgent), "Gait Agent 의 ⋮ ▸ Remove Component");
             s.Do("Box · Pick Table · Place Table · Place Marker 칸을 채운다", () => Has<CarryAgent>(Root) && Get<CarryAgent>(Root).box == Get<CarryBox>(BoxPath) && Get<CarryAgent>(Root).pickTable == T(PickTable) && Get<CarryAgent>(Root).placeTable == T(PlaceTable) && Get<CarryAgent>(Root).placeMarker != null).Insp(Root, typeof(CarryAgent), "Box · Pick Table · Place Table · Place Marker ← 끌어다 놓기");
             s.Do("Push Interval 0 · Max Step 3000", () => Has<CarryAgent>(Root) && Get<CarryAgent>(Root).pushInterval == 0 && Get<CarryAgent>(Root).MaxStep == 3000).Insp(Root, typeof(CarryAgent), "Push Interval · Max Step");
-            s.Do("Behavior Name: HumanoidCarry · Space Size: 65", () => Brain != null && Brain.BehaviorName == "HumanoidCarry" && Brain.BrainParameters.VectorObservationSize == 65).Insp(Root, typeof(BehaviorParameters), "Behavior Name · Space Size");
+            s.Do("ThighL · ThighR 의 Configurable Joint: Angular Y Motion Limited · Angular Y Limit 30", () => HipYaw(ThighL) && HipYaw(Pelvis + "/ThighR")).Insp(ThighL, typeof(ConfigurableJoint), "Angular Y Motion · Angular Y Limit (ThighR 도)");
+            s.Do("Behavior Name: HumanoidCarry · Space Size: 69 · Continuous Actions: 20", () => Brain != null && Brain.BehaviorName == "HumanoidCarry" && Brain.BrainParameters.VectorObservationSize == 69 && Brain.BrainParameters.ActionSpec.NumContinuousActions == 20).Insp(Root, typeof(BehaviorParameters), "Behavior Name · Space Size · Continuous Actions");
             ch.steps.Add(s.Do("걷기 목표 Target 을 지운다", () => T(Target) == null).Hier(Target, "우클릭 ▸ Delete"));
 
             ch.steps.Add(new Step { title = "실습 6-2  정말 놓였나", blank = "6-2",
@@ -1057,7 +1065,7 @@ namespace HumanoidEditor
                           "놓을 자리 원판의 색 = 지난 판 결과: 초록 성공 · 빨강 떨어뜨림 · 주황 넘어짐 · 회색 시간 초과.\n\n" +
                           "실측(500만 스텝 모델 · 20판씩): 난이도 0 성공 75% (배치 오차 8cm · 넘어짐 0) · 난이도 1 15% · 난이도 2 · 3 은 0%.\n" +
                           "  바로 옆으로 옮겨 놓기는 되고, 멀리 옮기기 · 걸어가서 집기는 아직 못 한다.\n" +
-                          "직접 학습하지 않았으면 미리 학습해 둔 Assets/Humanoid/results/HumanoidCarry.onnx (이 모델) 를 써도 된다.",
+                          "(엉덩이 비틀기를 넣기 전 모델의 결과다. 비틀기를 넣은 몸으로 다시 학습 중 — 미리 학습한 모델은 그 학습이 끝나면 넣는다.)",
                 done = "휴머노이드 트랙 끝! 걷고, 걸어가서 집고, 옮겨 놓는 정책까지 만들고 성공률로 평가했다." };
             s.Do("학습 영역을 1개로 되돌린다", () => GameObject.Find(Area + " 1") == null, "1개로", () => EditorApplication.ExecuteMenuItem("Humanoid/학습 영역 1개로")).Hier(Area, "오른쪽 [1개로] 버튼");
             s.Do("Model 칸에 학습된 .onnx 를 넣고 Inference Only 로", () => Brain != null && Brain.Model != null && IsBehavior(BehaviorType.InferenceOnly), "Inference Only", () => SetBehavior(BehaviorType.InferenceOnly)).Insp(Root, typeof(BehaviorParameters), "Model · Behavior Type");

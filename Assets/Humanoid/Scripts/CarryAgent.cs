@@ -8,6 +8,8 @@ namespace Humanoid
 {
     // 걸어가서 상자를 양팔로 집어 들고, 무작위로 고른 작업대에 내려놓기.
     // StandAgent 를 상속한다 — 관측 48 · 행동 18 · 넘어지면 끝은 그대로, 상자 · 놓을 자리 관측과 보상이 더해진다.
+    // 행동 2개(왼 · 오른 엉덩이 비틀기)가 더해져 20 — 상자를 든 채 돌려면 디딘 발 위에서 몸을 비틀 수 있어야 한다.
+    // (비틀기 축이 없을 때: 바로 옆으로 옮기기 75% 인데, 들고 0.6m 넘게 옮기거나 돌면 상자가 빠졌다 — 실측)
     // RobotArms 5장과 같은 구조다: 단계마다 "지금 가야 할 점"이 바뀌고, 그 점에 가까워진 만큼 보상한다.
     //   ① 두 아래팔을 상자 양옆으로  ② 양팔로 잡고 들어 올린다  ③ 상자를 놓을 자리 위로  ④ 내려놓고 팔을 뗀다
     // 다가간 보상은 "그 단계에서 지금까지 가장 가까웠던 거리"를 갱신할 때만 준다 — 오갔다 하며 쌓을 수 없게.
@@ -39,6 +41,7 @@ namespace Humanoid
         public float fallPenalty = 1f;       // 넘어짐 — 판이 끝난다
         public float standReward = 0.0003f;  // 서 있는 동안 매 스텝 × 서 있는 정도 (60초 다 받아도 0.9 — 가만히 서 있기가 잡기보다 이득이 되지 않게)
         public float maxJointTorque = 300f;  // 관절 모터 힘 상한 (5장과 같다)
+        public float hipYawRange = 30f;      // 엉덩이 비틀기 ±도 (행동 18 · 19). 6장 메뉴가 허벅지 관절의 Y 축을 이만큼 푼다
 
         // 실측으로 정한 값
         const float TableTop = 1.06f;        // 작업대 윗면 높이. 서서 팔을 앞으로 뻗은 높이(약 1.16)에 상자 가운데가 오게
@@ -55,8 +58,8 @@ namespace Humanoid
         // (실측: 놓을 자리가 골반 옆 0.43m — 1300만 스텝 동안 상자를 든 채 작업대 위에 서 있기만 했다)
         static readonly float[] SideAngles = { -90f, 90f };
 
-        BodyPart _forearmL, _forearmR;
-        readonly float[] _lastActions = new float[18];
+        BodyPart _forearmL, _forearmR, _thighL, _thighR;
+        readonly float[] _lastActions = new float[20];   // 관절 18 + 엉덩이 비틀기 2
         float _actionChange;
         readonly float[] _best = new float[3];   // 단계별 지금까지 가장 가까웠던 거리
         bool _grasped, _lifted;
@@ -82,6 +85,8 @@ namespace Humanoid
             {
                 if (p.name == "ForearmL") _forearmL = p;
                 if (p.name == "ForearmR") _forearmR = p;
+                if (p.name == "ThighL") _thighL = p;
+                if (p.name == "ThighR") _thighR = p;
             }
         }
 
@@ -138,7 +143,7 @@ namespace Humanoid
             Physics.SyncTransforms();
         }
 
-        // ── 관측 48 + 17 = 65 ───────────────────────────────────────
+        // ── 관측 48 + 17 + 4 = 69 ───────────────────────────────────
         // 위치는 전부 "내가 보는 방향" 기준. 어느 쪽을 보든 같은 상황이면 같은 숫자가 나오게 (4장 목표 관측과 같다).
 
         public override void CollectObservations(VectorSensor sensor)
@@ -153,7 +158,23 @@ namespace Humanoid
             sensor.AddObservation(toBody * box.rb.linearVelocity);                       // 3 상자 속도
             sensor.AddObservation(box.touchL);                                           // 1 왼팔이 닿음
             sensor.AddObservation(box.touchR);                                           // 1 오른팔이 닿음
-        } // = 65
+            sensor.AddObservation(Yaw(_thighL));                                         // 1 왼 엉덩이 비틀기 (-1~1)
+            sensor.AddObservation(Yaw(_thighR));                                         // 1 오른 엉덩이 비틀기
+            sensor.AddObservation(YawRate(_thighL) / 10f);                               // 1 비트는 속도
+            sensor.AddObservation(YawRate(_thighR) / 10f);                               // 1
+        } // = 69
+
+        // 허벅지가 골반에 대해 비틀린 각도를 -1~1 로 (±hipYawRange). 허벅지 앞쪽이 골반 기준 어디를 보나로 읽는다.
+        // 관절 공간은 Transform 과 부호가 반대라 읽을 때 뒤집는다 — 그래야 행동 +1 일 때 관측도 +1 (실측: 목표 +30 → 읽은 값 -29.7)
+        float Yaw(BodyPart thigh)
+        {
+            Vector3 f = Quaternion.Inverse(body.pelvis.transform.rotation) * thigh.transform.forward;
+            return -Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg / hipYawRange;
+        }
+
+        // 허벅지가 골반에 대해 비트는 속도 (라디안/초)
+        float YawRate(BodyPart thigh) =>   // 부호는 Yaw 와 같게 뒤집는다
+            -Vector3.Dot(thigh.rb.angularVelocity - body.pelvis.rb.angularVelocity, body.pelvis.transform.up);
 
         // ── 행동 · 보상 ─────────────────────────────────────────────
 
@@ -172,7 +193,15 @@ namespace Humanoid
 
             // 넘어지면 벌점. 없으면 "1초 만에 몸을 던져 잡고 들기(+2) → 넘어짐"이 배워진다 (실측: 300만 스텝까지 넘어짐 100%)
             if (body.HasFallen) { _result = Result.Fell; AddReward(-fallPenalty); }
-            base.OnActionReceived(actions);     // 행동 → 몸 · StepReward · 넘어지면 끝
+            base.OnActionReceived(actions);     // 행동 18 → 몸 · StepReward · 넘어지면 끝
+
+            // 행동 18 · 19 = 엉덩이 비틀기. 몸(SetActions)이 넣은 앞뒤 · 좌우 목표에 비틀기를 덧붙인다.
+            // 판이 방금 끝났으면(StepCount 0) 새 판의 차렷 자세를 건드리지 않는다
+            if (StepCount > 0)
+            {
+                _thighL.joint.targetRotation *= Quaternion.AngleAxis(Mathf.Clamp(a[18], -1f, 1f) * hipYawRange, Vector3.up);
+                _thighR.joint.targetRotation *= Quaternion.AngleAxis(Mathf.Clamp(a[19], -1f, 1f) * hipYawRange, Vector3.up);
+            }
         }
 
         protected override float StepReward()

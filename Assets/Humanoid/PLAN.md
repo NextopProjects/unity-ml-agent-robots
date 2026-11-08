@@ -26,7 +26,7 @@ Unity ML-Agents 실습 프로젝트. `RobotArms` 다음 트랙이다.
 | 3 | [03-서기-학습.md](Docs/03-서기-학습.md) | **밀려도 버티기** ★ | **도입** | 48 | 연속 18 | 3-1 ~ 3-3 |
 | 4 | [04-걷기-보상.md](Docs/04-걷기-보상.md) | **목표를 향해 걷기** ★ 최종 과제 | O | 51 | 연속 18 | 4-1 ~ 4-3 |
 | 5 | [05-학습과-평가.md](Docs/05-학습과-평가.md) | **자연스럽게 걷기** — 걸음 진단 · 걸음 보상(GaitAgent) · 방향 · 속도 커리큘럼 · 병렬 학습 · 같은 조건 평가 | O | 51 | 연속 18 | 5-1 ~ 5-4 |
-| 6 | [06-집어서-옮기기.md](Docs/06-집어서-옮기기.md) | **걸어가서 상자를 양팔로 집어 무작위 작업대에 놓기** — 물리 파지 · 단계 보상 · 성공률 난이도 | O | 65 | 연속 18 | 6-1 ~ 6-3 |
+| 6 | [06-집어서-옮기기.md](Docs/06-집어서-옮기기.md) | **걸어가서 상자를 양팔로 집어 무작위 작업대에 놓기** — 물리 파지 · 단계 보상 · 성공률 난이도 | O | 69 | 연속 20 | 6-1 ~ 6-3 |
 
 > **4장에서 최종 과제가 완성된다.** 5장은 그 걸음이 왜 이상한지(숙임 · 발 끌기 · 떨림) 숫자로 진단하고, 보상과 학습 순서를 고쳐 같은 조건으로 다시 재는 장이다.
 
@@ -114,7 +114,7 @@ Assets/Humanoid/
 |---|---|
 | `Docs` · `Editor` · `Materials` · `Scenes`(빈 실습 씬 + 정답 씬) · `Scripts` 폴더, `humanoid_config.yaml` · `humanoid_gait_config.yaml` · `humanoid_carry_config.yaml` · `PLAN.md` | 그 밖의 모든 것 (`results/` 학습 결과 등) · 담는 폴더 안의 학습 결과 파일 `.onnx` · `.pt` · `.nn` · `.json` |
 
-미리 학습해 둔 모델은 `Assets/Humanoid/results/HumanoidStand.onnx`(서기, 400만 스텝) · `HumanoidWalk.onnx`(걷기, 1000만 스텝) · `HumanoidGait.onnx`(자연스럽게 걷기, 1000만 스텝 · 힘 상한 300 · 판 길이 상한 없음) · `HumanoidCarry.onnx`(집어서 옮기기, 이어 학습 · 난이도 0 성공 75%)에 있다. 패키지에는 담지 않는다.
+미리 학습해 둔 모델은 `Assets/Humanoid/results/HumanoidStand.onnx`(서기, 400만 스텝) · `HumanoidWalk.onnx`(걷기, 1000만 스텝) · `HumanoidGait.onnx`(자연스럽게 걷기, 1000만 스텝 · 힘 상한 300 · 판 길이 상한 없음)에 있다. 집어서 옮기기 모델은 엉덩이 비틀기를 넣은 몸으로 다시 학습 중이다. 패키지에는 담지 않는다.
 
 뺀 것은 내보낼 때 콘솔에 개수와 폴더 이름으로 나온다 (실측: 35개 담음, `results` 28개 뺌).
 새 폴더를 패키지에 넣으려면 `HumanoidPackageExporter.Folders` 에 이름을 더한다.

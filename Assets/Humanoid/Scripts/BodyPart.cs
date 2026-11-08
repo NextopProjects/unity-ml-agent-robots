@@ -62,7 +62,7 @@ namespace Humanoid
         void OnCollisionExit(Collision c) { if (c.rigidbody == null) touchingGround = false; }
 
         // ── 관절 ───────────────────────────────────────────────────
-        // X = 앞뒤로 굽히기, Z = 좌우로 기울이기 (Y 비틀기는 잠갔다)
+        // X = 앞뒤로 굽히기, Z = 좌우로 기울이기 (Y 비틀기는 잠갔다 — 집어서 옮기기만 엉덩이 Y 를 풀어 CarryAgent 가 따로 넣는다)
 
         // 목표 각도(도)를 관절 모터에 넣는다. 모터가 이 각도로 당긴다.
         public void SetTarget(float x, float z)
