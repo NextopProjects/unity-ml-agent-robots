@@ -25,11 +25,18 @@ namespace Humanoid
         [Header("난이도 — 최근 20판 중 14판 이상 성공하면 올리고, 3판 이하면 내린다")]
         public int level;                    // 0 ~ 6
         public bool autoLevel = true;        // 끄면 level 고정 (평가할 때)
-        // 단계별 (상자까지 거리 m, 상자 방향 ±도, 상자 작업대 → 놓을 작업대 m). 0 ~ 2 = 상자까지 걷지 않고 팔이 닿는다
-        // 잘게 나눈다: 옆 0.4m → 1.0m · 1.2m 로 한 번에 올렸더니 성공 33% → 9%, 옆 0.4 → 0.8m 에서도 32% → 5% 로 무너졌다 (실측)
-        static readonly Vector3[] Levels = {
-            new Vector3(0.45f, 0f, 0.4f), new Vector3(0.45f, 0f, 0.6f), new Vector3(0.45f, 0f, 0.8f), new Vector3(0.8f, 15f, 0.8f),
-            new Vector3(1.2f, 30f, 1.2f), new Vector3(2.0f, 90f, 2.0f), new Vector3(3.5f, 180f, 3.0f) };
+        // 4장 Target 처럼 판마다 무작위 — 상자 자리도, 놓을 자리도 범위 안에서 연속으로 뽑는다 (몇 곳 중 고르면 자리를 외운다).
+        // 단계별 범위: 상자까지 거리 min~max m · 상자 방향 ±도 | 상자 → 놓을 자리 거리 min~max m · 놓을 방향 = 옆(90°) ±도
+        // 0 ~ 2 = 상자까지 걷지 않고 팔이 닿는다. 잘게 나눈다: 한 번에 넓혔더니 성공 33% → 9%, 32% → 5% 로 무너졌다 (실측)
+        static readonly float[][] Levels = {
+            //  상자 거리     방향   놓을 거리     방향
+            new[] { 0.40f, 0.50f,  10f,  0.35f, 0.50f,  20f },
+            new[] { 0.40f, 0.50f,  15f,  0.35f, 0.70f,  30f },
+            new[] { 0.40f, 0.55f,  20f,  0.35f, 0.90f,  45f },
+            new[] { 0.60f, 1.00f,  30f,  0.50f, 1.00f,  45f },
+            new[] { 0.80f, 1.50f,  45f,  0.60f, 1.50f,  60f },
+            new[] { 1.20f, 2.50f,  90f,  0.80f, 2.50f,  90f },
+            new[] { 1.20f, 3.50f, 180f,  0.80f, 3.00f,  90f } };
 
         [Header("보상")]
         public float graspReward = 1f;       // 처음 0.3초 동안 양팔로 잡고 있었을 때 (판에 한 번)
@@ -53,10 +60,9 @@ namespace Humanoid
         const float CarryWeight = 3f;        // 옮기기 단계도 3배 — 0.5~3m 를 들고 가는 동안 떨어뜨릴 위험(−1)보다 커야 옮기러 나선다
                                              // (실측: 1배일 때 1000만 스텝 동안 들고 서 있다가 시간 초과가 대부분)
         const float LiftWeight = 5f;         // 들기 단계는 거리가 8cm 뿐이라 다가간 보상을 5배로 (안 그러면 0.1점 — 실측: 500만 스텝까지 들기 0%)
-        static readonly float[] PlaceAngles = { -120f, -90f, -60f, 60f, 90f, 120f };   // 놓을 자리 후보 (상자 작업대 둘레, 몸 쪽에서 잰 각도)
-        // 난이도 0 ~ 2 는 바로 옆(±90°)만. 거리가 짧을 때 ±60° 는 몸의 엉덩이 옆이 되어, 상자를 들고 돌아서야만 놓을 수 있다
+        // 놓을 방향은 상자 작업대에서 몸 쪽을 0° 로 잰다. 쉬운 단계는 옆(90°) 가까이만 —
+        // 거리가 짧을 때 몸 쪽(60° 이하)으로 가면 놓을 자리가 엉덩이 옆이 되어, 들고 돌아서야만 놓을 수 있다
         // (실측: 놓을 자리가 골반 옆 0.43m — 1300만 스텝 동안 상자를 든 채 작업대 위에 서 있기만 했다)
-        static readonly float[] SideAngles = { -90f, 90f };
 
         BodyPart _forearmL, _forearmR, _thighL, _thighR;
         readonly float[] _lastActions = new float[20];   // 관절 18 + 엉덩이 비틀기 2
@@ -118,20 +124,25 @@ namespace Humanoid
             _best[0] = _best[1] = _best[2] = float.MaxValue;
         }
 
-        // 상자 작업대: 몸 정면 ±(단계의 방향) 쪽 (단계의 거리). 놓을 작업대: 그 둘레 후보 중 하나.
-        // 후보는 몸 쪽에서 본 옆 · 비스듬히 뒤 — 놓을 자리가 상자 작업대 너머에 숨지 않게.
+        // 상자 작업대: 몸 정면 ±방향 · 거리를 범위 안에서 무작위로. 놓을 작업대: 상자 작업대의 왼쪽이나 오른쪽, 각도 · 거리 무작위.
+        // 놓을 자리가 몸과 겹치면(몸에서 0.45m 안) 다시 뽑는다.
         void PlaceTables()
         {
-            Vector3 lv = Levels[Mathf.Clamp(level, 0, Levels.Length - 1)];
+            int lv = Mathf.Clamp(level, 0, Levels.Length - 1);
             Vector3 origin = transform.position;     // 몸이 서는 자리 (Humanoid 뿌리)
-            Quaternion facing = Quaternion.Euler(0f, Random.Range(-lv.y, lv.y), 0f);
-            Vector3 pick = origin + facing * Vector3.forward * lv.x;
+            Quaternion facing = Quaternion.Euler(0f, Random.Range(-Levels[lv][2], Levels[lv][2]), 0f);
+            Vector3 pick = origin + facing * Vector3.forward * Random.Range(Levels[lv][0], Levels[lv][1]);
             pickTable.position = new Vector3(pick.x, origin.y + TableTop * 0.5f, pick.z);
 
-            Vector3 back = (origin - pick).normalized;      // 상자 작업대에서 몸 쪽
-            float[] angles = level <= 2 ? SideAngles : PlaceAngles;
-            Vector3 dir = Quaternion.Euler(0f, angles[Random.Range(0, angles.Length)], 0f) * back;
-            Vector3 place = pick + new Vector3(dir.x, 0f, dir.z).normalized * lv.z;
+            Vector3 back = Flat(origin - pick).normalized;      // 상자 작업대에서 몸 쪽
+            Vector3 place = pick;
+            for (int i = 0; i < 20; i++)
+            {
+                float side = Random.value < 0.5f ? -1f : 1f;
+                float angle = side * (90f + Random.Range(-Levels[lv][5], Levels[lv][5]));
+                place = pick + Quaternion.Euler(0f, angle, 0f) * back * Random.Range(Levels[lv][3], Levels[lv][4]);
+                if (Flat(place - origin).magnitude >= 0.45f) break;
+            }
             placeTable.position = new Vector3(place.x, origin.y + TableTop * 0.5f, place.z);
 
             box.transform.SetPositionAndRotation(new Vector3(pick.x, origin.y + TableTop + BoxHalf, pick.z), facing);

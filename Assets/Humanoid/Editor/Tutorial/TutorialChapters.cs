@@ -949,7 +949,7 @@ namespace HumanoidEditor
                           "윗면 높이 1.06 = 팔을 앞으로 뻗은 높이(약 1.16)에 상자 가운데가 오는 높이 (실측).\n\n" +
                           "★ Rigidbody 를 달고 Is Kinematic 을 켠다. BodyPart 는 Rigidbody 가 없는 것을 \"바닥\"으로 본다 —\n" +
                           "   그대로 두면 팔이 작업대에 닿기만 해도 넘어짐이 되어 판이 끝난다. Kinematic = 움직이지 않는 Rigidbody.\n" +
-                          "에이전트가 판마다 두 작업대를 옮긴다(놓을 작업대는 상자 작업대 둘레의 후보 6곳 중 하나).",
+                          "에이전트가 판마다 두 작업대를 무작위 자리로 옮긴다 — 4장 Target 처럼 거리 · 방향을 범위 안에서 뽑는다.",
                 solve = () => { Ch6_Carry.Table(T(Area), "PickTable", new Vector3(0f, 0f, 0.45f)); Ch6_Carry.Marker(Ch6_Carry.Table(T(Area), "PlaceTable", new Vector3(0.8f, 0f, 0.45f))); } };
             s.Do("HumanoidArea 아래에 Cube, 이름 PickTable", () => ChildOf(PickTable, Area)).Hier(Area, "우클릭 ▸ 3D Object ▸ Cube ▸ 이름 PickTable");
             s.Do("Position (0, 0.53, 0.45) · Scale (0.25, 1.06, 0.25)", () => LocalPos(PickTable, new Vector3(0f, 0.53f, 0.45f)) && Near(T(PickTable).localScale, new Vector3(0.25f, 1.06f, 0.25f))).Insp(PickTable, typeof(Transform), "Position · Scale");
@@ -1027,8 +1027,9 @@ namespace HumanoidEditor
             ch.steps.Add(new Step { title = "실습 6-3  성공률로 난이도 조절", blank = "6-3",
                 goal = "최근 20판 중 14판 이상 성공하면 다음 난이도로 올리고, 3판 이하면 앞 난이도로 내린다",
                 concept = "CarryAgent.LevelUp(success) — 판이 끝날 때마다 그 판의 성공 여부를 넣어 부른다.\n" +
-                          "난이도(Levels): 0 = 상자가 몸 바로 앞 0.45m · 놓을 자리는 그 바로 옆 0.4m (상자까지는 걷지 않고 팔이 닿는다)\n" +
-                          "                1 = 옆 0.6m    2 = 옆 0.8m    3 = 0.8m · ±15° · 0.8m    4 = 1.2m · ±30° · 1.2m    5 = 2.0m · ±90° · 2.0m    6 = 3.5m · 사방 · 3.0m\n" +
+                          "난이도(Levels): 상자 자리 · 놓을 자리를 판마다 범위 안에서 무작위로 뽑는다. 난이도가 오르면 범위가 넓어진다.\n" +
+                          "                0 = 상자 0.40~0.50m · ±10° (걷지 않고 팔이 닿는다) · 놓을 자리는 그 옆 0.35~0.50m\n" +
+                          "                3 = 상자 0.6~1.0m · ±30° · 놓을 자리 0.5~1.0m      6 = 상자 1.2~3.5m · 사방 · 놓을 자리 0.8~3.0m · 사방\n" +
                           "쓸 수 있는 것: _recent (Queue<bool>, 최근 판들의 성공 여부) · level · autoLevel · Levels.Length\n\n" +
                           "왜 yaml 커리큘럼(5장)을 안 쓰나? yaml 은 보상 크기로만 단계를 넘긴다. 처음 학습에서 성공 0 인데도 보상이 기준을 넘어\n" +
                           "단계가 올라갔고, 걷지도 못하는 몸에 2m 떨어진 상자가 주어져 넘어짐 99% 가 됐다 (실측). 진짜 목표(성공)로 정한다.\n" +
