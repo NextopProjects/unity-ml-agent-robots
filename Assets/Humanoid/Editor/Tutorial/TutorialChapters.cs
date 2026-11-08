@@ -995,7 +995,7 @@ namespace HumanoidEditor
                           "  ① 두 아래팔을 상자 양옆으로  ② 잡고 들어 올린다  ③ 상자를 놓을 자리 위로  ④ 내려놓고 팔을 뗀다\n" +
                           "보상: 그 단계의 최고 기록(가장 가까웠던 거리)을 갱신할 때만 다가간 만큼(들기 ×5 · 옮기기 ×3) · 잡기 0.3초 +1 · 들기 0.5초 +1\n" +
                           "      내려놓기(자리 위 작업대에 멈춤) +1 (모두 판에 한 번) · 놓기 성공(팔까지 뗌) +3 (판 끝)\n" +
-                          "      떨어뜨림 −1 · 넘어짐 −1 (판 끝) · 서 있는 동안 아주 조금(판 전체 0.9 이하)\n" +
+                          "      떨어뜨림 −1 (들어 올리기 전에만. 들고 가다 놓치면 판만 끝난다) · 넘어짐 −1 (판 끝) · 서 있는 동안 아주 조금(판 전체 0.9 이하)\n" +
                           "Max Step 3000 (60초). 4~5장의 걷기 목표(Target)는 쓰지 않으니 지운다.",
                 solve = () => Ch6_Carry.Agent(T(Root)) };
             s.Do("Humanoid 에 Add Component > Carry Agent", () => Has<CarryAgent>(Root)).Insp(Root, typeof(CarryAgent), "Add Component ▸ Carry Agent");

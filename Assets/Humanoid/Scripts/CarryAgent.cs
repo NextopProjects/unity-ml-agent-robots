@@ -45,7 +45,7 @@ namespace Humanoid
         public float liftReward = 1f;        // 처음 0.5초 동안 들고 있었을 때 (판에 한 번)
         public float setDownReward = 1f;     // 처음 상자를 놓을 자리 작업대 위에 멈춰 놓았을 때 (판에 한 번). 아직 쥐고 있어도 준다
         public float placeReward = 3f;       // 놓기 성공(놓고 팔까지 뗌) — 판이 끝난다
-        public float dropPenalty = 1f;       // 상자를 바닥에 떨어뜨림 — 판이 끝난다
+        public float dropPenalty = 1f;       // 들기 전에 상자를 바닥에 떨어뜨림 — 판이 끝난다 (들고 가다 놓치면 판만 끝난다)
                                              // (2 로 했더니 상자를 아예 건드리지 않았다 — 실측: 500만 스텝 잡기 0~2%)
         public float fallPenalty = 1f;       // 넘어짐 — 판이 끝난다
         public float standReward = 0.0003f;  // 서 있는 동안 매 스텝 × 서 있는 정도 (60초 다 받아도 0.9 — 가만히 서 있기가 잡기보다 이득이 되지 않게)
@@ -69,7 +69,7 @@ namespace Humanoid
         readonly float[] _lastActions = new float[20];   // 관절 18 + 엉덩이 비틀기 2
         float _actionChange;
         readonly float[] _best = new float[3];   // 단계별 지금까지 가장 가까웠던 거리
-        bool _grasped, _lifted;
+        bool _grasped, _lifted, _raised;                    // _raised = 이번 판에 한 번이라도 들어 올렸나
         bool _graspPaid, _liftPaid, _setDownPaid;          // 이번 판에 잡기 · 들기 보상을 줬나 (판에 한 번씩만)
         int _restSteps, _liftSteps, _graspSteps;
 
@@ -118,7 +118,7 @@ namespace Humanoid
 
             System.Array.Clear(_lastActions, 0, _lastActions.Length);
             _actionChange = 0f;
-            _grasped = _lifted = false;
+            _grasped = _lifted = _raised = false;
             _restSteps = _liftSteps = _graspSteps = 0;
             _result = Result.TimeOut;    // 끝날 때까지 다른 결과가 없으면 시간 초과
             _gait.Clear();
@@ -220,6 +220,7 @@ namespace Humanoid
         {
             _grasped = box.Grasped;
             _lifted = _grasped && box.transform.position.y > TableTop + BoxHalf + LiftHeight;
+            _raised |= _lifted;
             _gait.Step(body, Flat(GoalPoint() - body.pelvis.transform.position).normalized, Time.fixedDeltaTime);
             box.Show(_lifted);
 
@@ -247,10 +248,13 @@ namespace Humanoid
             r += standReward * base.StepReward();      // 서 있는 정도 (0~1, 3장 서기 보상)
 
             // 판 끝. 보상을 먼저 넣고 끝낸다 — EndEpisode 뒤에 돌려주면 다음 판의 보상이 된다
+            // 떨어뜨림 벌점은 들어 올리기 전에만 — 작업대에서 쳐서 떨어뜨리기를 막는 용도다.
+            // 들고 옮기다 놓치면 판이 끝나 남은 보상을 못 받는 것으로 충분하다. 벌점까지 주면 들기 시도 자체를 그만둔다
+            // (실측: 놓을 자리 2m 에서 1500만 스텝 동안 잡기 90% · 들기 0% — 잠깐 잡아 잡기 보상만 받고 상자 앞에 서 있다 시간 초과)
             if (box.transform.position.y < 0.5f)                         // 바닥에 떨어졌다 (작업대 윗면 1.06)
             {
                 _result = Result.Dropped;
-                AddReward(r - dropPenalty);
+                AddReward(r - (_raised ? 0f : dropPenalty));
                 EndEpisode();
                 return 0f;
             }
