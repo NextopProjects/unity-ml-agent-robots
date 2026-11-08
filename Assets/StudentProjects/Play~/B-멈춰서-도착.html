@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>B. 멈춰서 도착</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const F = 10, HALF = 5, R_OK = 0.7, V_OK = 0.2;
+RLPlay.start({
+  id: "B", file: "B-멈춰서-도착", title: "멈춰서 도착", en: "Stop at Target",
+  concept: "공이 목표 원 안에 정확히 멈춰 선다. 지나치기만 하면 성공이 아니다 — 원 안 + 속도 < 0.2 일 때만 +1.",
+  view: { x0: -5.5, x1: 5.5, y0: -5.5, y1: 5.5 }, maxStep: 500, decisionPeriod: 5,
+  obs: ["목표 − 공 x", "목표 − 공 z", "공 속도 x", "공 속도 z"],
+  act: { kind: "continuous", names: ["x 방향 힘", "z 방향 힘"] },
+  keys: [["W", "+z"], ["A", "−x"], ["S", "−z"], ["D", "+x"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0), (k.has("W") ? 1 : 0) - (k.has("S") ? 1 : 0)],
+  reset(s) {
+    s.p = [rnd(-4, 4), rnd(-4, 4)]; s.v = [0, 0];
+    do { s.t = [rnd(-4, 4), rnd(-4, 4)]; } while (Math.hypot(s.t[0] - s.p[0], s.t[1] - s.p[1]) < 2);
+  },
+  observe: (s) => [s.t[0] - s.p[0], s.t[1] - s.p[1], s.v[0], s.v[1]],
+  step(s, a, dt) {
+    for (let i = 0; i < 2; i++) { s.v[i] += a[i] * F * dt; s.v[i] *= 1 - 0.4 * dt; s.p[i] += s.v[i] * dt; }
+    if (Math.abs(s.p[0]) > HALF || Math.abs(s.p[1]) > HALF) return { done: "바닥 밖으로 떨어짐" };
+    const d = Math.hypot(s.t[0] - s.p[0], s.t[1] - s.p[1]), sp = Math.hypot(...s.v);
+    if (d < R_OK && sp < V_OK) return { reward: 1, event: "원 안에서 멈춤", done: "원 안에서 멈춤 — 성공" };
+    return {};
+  },
+  rule(s) { // 남은 거리로 멈출 수 있는 속도까지만 낸다 (가속 → 감속)
+    const d = [s.t[0] - s.p[0], s.t[1] - s.p[1]], L = Math.hypot(...d) || 1, sp = Math.min(3.5, Math.sqrt(2 * 2.5 * L) - 0.1);
+    return [0, 1].map((i) => clamp((d[i] / L * Math.max(0, sp) - s.v[i]) * 1.2, -1, 1));
+  },
+  draw(g, s, E) {
+    g.rect(-HALF, -HALF, 10, 10, C.BG);
+    g.circle(s.t[0], s.t[1], R_OK, C.POS, { alpha: 0.18 }); g.circle(s.t[0], s.t[1], R_OK, C.POS, { stroke: true });
+    g.line(s.p[0], s.p[1], s.t[0], s.t[1], C.ENV, { dash: [5, 5], width: 1.5 });
+    g.circle(s.p[0], s.p[1], 0.45, C.ACC);
+    g.line(s.p[0], s.p[1], s.p[0] + s.v[0] * 0.5, s.p[1] + s.v[1] * 0.5, C.ENV, { arrow: true, width: 2 });
+    g.line(s.p[0], s.p[1], s.p[0] + E.lastAct[0] * 1.2, s.p[1] + E.lastAct[1] * 1.2, C.ACC, { arrow: true, width: 3 });
+    const sp = Math.hypot(...s.v);
+    g.text(`속력 ${sp.toFixed(2)}  ${sp < V_OK ? "(멈춤 기준 통과)" : "(0.2 미만이어야 멈춘 것)"}`, 0, 5.2, sp < V_OK ? C.POS : C.MUTED, 13);
+    g.text("파랑 화살표: 속도 (관측)   주황: 힘 (행동)", 0, -5.25, C.MUTED, 12);
+  },
+  rewards: [["원 안 (거리 < 0.7) · 속력 < 0.2", "+1", "판 끝 — 성공"], ["바닥에서 떨어짐", "0", "판 끝"], ["500 스텝 지남", "0", "판 끝 (Max Step)"]],
+  howto: ["목표 원판은 콜라이더를 지운다 — 걸려서 멈추면 '스스로 멈춘 것'이 아니다", "사람 모드로 멈춰 보고 속력 기준(0.2)이 적당한지 정한다", "관측에 속도가 꼭 있어야 한다 — 빼면 멈출 시점을 모른다", "성공하면 SetReward(1) + EndEpisode(), Max Step 500", "비교 실험: 성공 조건을 '닿기만 하면'으로 바꿔 학습한 모델과 도착 속도를 비교"],
+  code: `public override void OnEpisodeBegin()
+{
+    rb.linearVelocity = Vector3.zero;
+    transform.localPosition = RandomPoint();              // 공 · 목표 모두 무작위
+    do target.localPosition = RandomPoint();
+    while (Vector3.Distance(target.localPosition, transform.localPosition) < 2f);
+}
+
+public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 d = target.localPosition - transform.localPosition;
+    sensor.AddObservation(d.x); sensor.AddObservation(d.z);                          // 2
+    sensor.AddObservation(rb.linearVelocity.x); sensor.AddObservation(rb.linearVelocity.z); // 2 — 멈추려면 꼭 필요
+}   // = 4
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    var c = a.ContinuousActions;
+    rb.AddForce(new Vector3(c[0], 0, c[1]) * 10f);
+    float dist = Vector3.Distance(target.localPosition, transform.localPosition);
+    if (dist < 0.7f && rb.linearVelocity.magnitude < 0.2f)   // 멈춰야 성공
+    { SetReward(1f); EndEpisode(); }
+    else if (transform.localPosition.y < 0) EndEpisode();
+}`,
+});
+</script></body></html>

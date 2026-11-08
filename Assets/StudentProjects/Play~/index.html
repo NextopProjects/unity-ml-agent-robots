@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>자율 프로젝트 플레이 초안</title><link rel="stylesheet" href="rl-play.css">
+<style>
+  .wrap { padding: 8px 24px 32px; max-width: 1200px; }
+  .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+  .item { background: var(--card); border-radius: 10px; padding: 14px 16px; }
+  .item h2 { margin: 0 0 2px; font-size: 17px; }
+  .item h2 a { color: var(--text); text-decoration: none; }
+  .item h2 a:hover { color: var(--acc); }
+  .item p { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
+  .tag { display: inline-block; background: var(--card2); color: var(--acc); border-radius: 10px; padding: 0 8px; font-size: 12px; margin-right: 4px; }
+  .links a { font-size: 13px; margin-right: 10px; }
+  .how { background: var(--card); border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; }
+  .how ol { margin: 6px 0 0; padding-left: 20px; } .how li { margin: 2px 0; }
+  h3.lv { color: var(--acc); margin: 22px 0 8px; font-size: 14px; }
+</style></head>
+<body>
+<header><h1>자율 프로젝트 — 플레이 가능한 초안</h1><p>과제마다 게임이 어떻게 흘러가고, 그 위에 강화학습(관측 · 행동 · 보상 · 에피소드)이 어떻게 붙는지 직접 조작하며 확인한다.</p></header>
+<div class="wrap">
+  <div class="how"><b>보는 법</b>
+    <ol>
+      <li><b>사람 (Heuristic)</b> 으로 먼저 플레이한다 — 사람이 못 하면 에이전트도 못 한다.</li>
+      <li><b>무작위 (학습 전)</b> 로 바꿔, 아무것도 모르는 에이전트가 어떻게 움직이고 어떤 보상을 받는지 본다.</li>
+      <li><b>규칙 (학습 후 예시)</b> 은 학습이 잘 됐을 때의 모습을 흉내 낸 손 규칙이다 (신경망 아님). 목표로 삼을 플레이.</li>
+      <li>오른쪽 패널에서 결정마다 바뀌는 <b>관측 · 행동</b>, 들어오는 <b>보상</b>, 불리는 <b>ML-Agents 메서드</b>를 따라간다.</li>
+      <li>아래쪽의 보상 표와 <b>C# 코드 뼈대</b>가 Unity 에서 붙일 내용이다. 자세한 설계는 각 과제의 기획서 (PDF · md).</li>
+    </ol>
+    <p class="hint" style="margin:8px 0 0">이 초안은 브라우저용 단순 물리다. 숫자(힘 · 속도 · 기준)는 기획서의 예시 설계와 같지만, Unity 물리와 똑같이 움직이지는 않는다. 파일을 더블클릭해 브라우저로 연다 (인터넷 필요 없음).</p>
+  </div>
+  <div id="list"></div>
+</div>
+<script>
+const P = [
+  ["★ 입문", [["A-동전-모으기", "A. 동전 모으기", "반복 과제", "먹어도 판이 끝나지 않는다 — 성적은 누적 보상으로 읽는다"], ["B-멈춰서-도착", "B. 멈춰서 도착", "성공 조건 설계", "닿기가 아니라 '멈추기'가 성공 — 감속을 배운다"], ["C-격자-이동", "C. 격자 이동", "이산 행동", "다섯 가지 중 하나를 고르는 턴 방식 · 걸음마다 작은 비용"], ["D-막대-세우기", "D. 막대 세우기", "버티기 보상", "도착점이 없다 — 살아 있는 스텝마다 점수"]]],
+  ["★★ 중급", [["E-장애물-피해-도착", "E. 장애물 피하기", "Ray Perception 센서", "광선이 기둥을 본다 — 관측을 센서가 채운다"], ["F-상자-밀어-넣기", "F. 상자 밀어 넣기", "진전 보상 · 상한", "우연한 성공이 없는 과제 — 중간 보상이 길잡이"], ["G-주차", "G. 주차", "sin · cos 관측", "옆으로 못 가는 차 — 내 기준 좌표와 각도"], ["H-착륙선", "H. 착륙선", "벌점 조절", "가만있으면 추락 — 벌점 크기가 행동을 정한다"], ["I-공-받아치기", "I. 공 받아치기", "Decision Period", "결정이 늦으면 놓친다 — ?dp=10 으로 비교"]]],
+  ["★★★ 도전", [["J-술래잡기", "J. 술래잡기", "두 Behavior", "1단계: 코드 술래를 피해 버티는 도망자"], ["K-2관절-팔", "K. 2관절 팔", "도달 범위 검증", "학습 전에 닿는 범위부터 잰다"], ["L-커리큘럼", "L. 커리큘럼", "커리큘럼", "B 위에 난이도 단계 — 잘하면 목표가 멀어진다"], ["M-시연으로-배우기", "M. 시연 학습", "BC · GAIL", "사람 플레이를 녹화하고 따라 하기"]]],
+];
+document.getElementById("list").innerHTML = P.map(([lv, items]) => `<h3 class="lv">${lv}</h3><div class="list">${items.map(([f, t, tag, d]) => `<div class="item"><h2><a href="${f}.html">${t}</a></h2><span class="tag">${tag}</span><p>${d}</p><div class="links"><a href="${f}.html">▶ 플레이</a><a href="../Games/${f}.pdf">기획서 PDF</a><a href="../Games/${f}-기획서.md">기획서 md</a><a href="../Games/${f}.md">만드는 법</a></div></div>`).join("")}</div>`).join("");
+</script>
+</body></html>

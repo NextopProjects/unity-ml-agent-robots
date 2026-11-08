@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M. 시연 학습</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script src="push-common.js"></script><script>
+RLPlay.start(Object.assign({}, PushGame, {
+  id: "M", file: "M-시연으로-배우기", title: "시연 학습", en: "Learning from Demonstrations",
+  concept: "F 상자 밀기를 사람이 먼저 플레이해 녹화하고, 그 기록을 따라 하며 시작한다. ① 사람 모드로 몇 판 성공시키면 장면이 녹화되고 ② '따라 하기' 모드가 녹화를 흉내 낸다.",
+  demo: true,
+  howto: ["바탕은 F 상자 밀기 — 관측 · 행동 · 보상이 같다. 녹화 전에 관측을 굳힌다", "Agent 오브젝트에 Demonstration Recorder: Record 켬 · 이름 · 저장 폴더", "Behavior Type = Heuristic Only 로 성공 판 약 20개 → Play 멈추면 .demo 파일", "yaml 에 behavioral_cloning (strength 0.5 · steps 50000) — 또는 gail (strength 0.1) 을 따로", "이 화면의 '따라 하기'는 BC 의 아이디어만 흉내 낸 것: 지금과 가장 비슷한 녹화 장면의 행동을 그대로 쓴다. 들쭉날쭉하게 녹화하면 그 습관까지 따라 한다", "따라 하기만으로는 오래 못 간다 — 작은 실수로 시연에 없던 장면에 들어가면 헤맨다 (이 화면 실측: 손 규칙 시연 20판 → 따라 하기 30판 중 3판 성공). 그래서 BC 는 PPO 와 함께, 학습 초반에만 쓴다"],
+  code: `// 코드는 F 와 같다. 바뀌는 것은 컴포넌트와 yaml 뿐이다.
+
+// 1) 녹화: Agent 오브젝트에 Demonstration Recorder
+//    Record = true, Demonstration Name = "push_good",
+//    Demonstration Directory = "Assets/StudentProjects/<내폴더>/Demos"
+//    Behavior Type = Heuristic Only 로 Play → 성공 판 약 20개 → Play 멈춤
+
+// 2) 녹화가 끝나면 Record = false (켜 둔 채 학습하면 .demo 가 계속 커진다)
+
+/* 3) yaml — 세 실험을 따로: PPO 만 / +BC / +GAIL
+behaviors:
+  BoxPusher:
+    trainer_type: ppo
+    # ... F 와 같은 설정 ...
+    behavioral_cloning:            # 따라 하기 — 초반 5만 스텝만
+      demo_path: Assets/StudentProjects/<내폴더>/Demos/push_good.demo
+      strength: 0.5
+      steps: 50000
+    reward_signals:
+      extrinsic: { gamma: 0.99, strength: 1.0 }
+      gail:                        # 닮으면 보상 — BC 와 따로 실험
+        strength: 0.1
+        demo_path: Assets/StudentProjects/<내폴더>/Demos/push_good.demo
+*/
+
+public override void Heuristic(in ActionBuffers o)    // 좋은 Heuristic = 좋은 녹화기
+{
+    var c = o.ContinuousActions; var k = Keyboard.current;
+    c[0] = (k.dKey.isPressed ? 1 : 0) - (k.aKey.isPressed ? 1 : 0);
+    c[1] = (k.wKey.isPressed ? 1 : 0) - (k.sKey.isPressed ? 1 : 0);
+}`,
+}));
+</script></body></html>

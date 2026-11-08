@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>F. 상자 밀어 넣기</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script src="push-common.js"></script><script>
+RLPlay.start(Object.assign({}, PushGame, {
+  id: "F", file: "F-상자-밀어-넣기", title: "상자 밀어 넣기", en: "Box Pusher",
+  concept: "공이 상자를 밀어 골 칸에 넣는다. 내가 아니라 상자가 목표에 가야 한다 — 우연한 성공이 거의 없어서 '진전 보상'이 길잡이가 된다.",
+  howto: ["벽 4개 · 공 · 상자(Rigidbody) · 골(그림)을 놓는다. 상자 무게 · 마찰은 사람 모드로 밀어 보고 정한다", "관측 8칸: 상자 방향 · 골 방향 · 두 속도", "상자 ↔ 골 거리가 줄어든 만큼 × 0.5 — 한 스텝 ±0.02 로 자른다 (없으면 보상이 튄다)", "판 시작에 '이전 거리'를 다시 잰다 — 안 그러면 첫 스텝에 큰 보상이 튄다", "비교 실험: 끝 보상만 vs 진전 보상 — 처음 성공까지 걸리는 스텝"],
+  code: `public override void OnEpisodeBegin()
+{
+    PlaceRandom();                                  // 상자는 벽에서 1.5, 골과 2.5 이상
+    prevDist = Vector3.Distance(box.localPosition, goal.localPosition);  // 꼭 다시 잰다
+}
+
+public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 toBox = box.localPosition - transform.localPosition;
+    Vector3 toGoal = goal.localPosition - box.localPosition;
+    sensor.AddObservation(toBox.x);  sensor.AddObservation(toBox.z);    // 2
+    sensor.AddObservation(toGoal.x); sensor.AddObservation(toGoal.z);   // 2
+    sensor.AddObservation(rb.linearVelocity.x); sensor.AddObservation(rb.linearVelocity.z);   // 2
+    sensor.AddObservation(boxRb.linearVelocity.x); sensor.AddObservation(boxRb.linearVelocity.z); // 2
+}   // = 8
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    var c = a.ContinuousActions;
+    rb.AddForce(new Vector3(c[0], 0, c[1]) * 10f);
+
+    float d = Vector3.Distance(box.localPosition, goal.localPosition);
+    AddReward(Mathf.Clamp((prevDist - d) * 0.5f, -0.02f, 0.02f));   // 진전 보상 + 상한
+    prevDist = d;
+
+    if (InGoal(box.localPosition)) { AddReward(1f); EndEpisode(); }
+}`,
+}));
+</script></body></html>

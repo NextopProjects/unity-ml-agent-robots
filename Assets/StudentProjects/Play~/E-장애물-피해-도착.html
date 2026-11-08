@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>E. 장애물 피하기</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const F = 10, HALF = 5, PR = 0.35, AR = 0.4, RAY = 6, NR = 8; // 기둥 · 공 반지름, 광선 길이 · 개수
+const far = (p, list, d) => list.every((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) >= d);
+function rays(s) { // 8 방향 광선: 맞은 거리 ÷ 길이 (1 = 아무것도 없음)
+  const out = [];
+  for (let i = 0; i < NR; i++) {
+    const a = (i / NR) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+    let t = RAY, hit = null;
+    for (const [list, r, tag] of [[s.pil, PR, "기둥"], [[s.t], 0.35, "목표"]]) for (const q of list) {
+      const px = q[0] - s.p[0], pz = q[1] - s.p[1], proj = px * dx + pz * dz, d2 = px * px + pz * pz - proj * proj;
+      if (proj > 0 && d2 < r * r) { const tt = proj - Math.sqrt(r * r - d2); if (tt < t) { t = tt; hit = tag; } }
+    }
+    out.push({ d: t / RAY, hit, dx, dz, t });
+  }
+  return out;
+}
+RLPlay.start({
+  id: "E", file: "E-장애물-피해-도착", title: "장애물 피하기", en: "Obstacle Dodge",
+  concept: "무작위 기둥 사이를 지나 목표에 닿는다. 기둥은 광선 센서(Ray Perception Sensor)로 본다 — 관측의 대부분을 코드가 아니라 센서가 채운다.",
+  view: { x0: -5.5, x1: 5.5, y0: -5.5, y1: 5.5 }, maxStep: 1000, decisionPeriod: 5,
+  obs: ["목표 − 공 x", "목표 − 공 z", "공 속도 x", "공 속도 z", ...Array.from({ length: NR }, (_, i) => `광선 ${i * 45}° 거리 (센서)`)],
+  act: { kind: "continuous", names: ["x 방향 힘", "z 방향 힘"] },
+  keys: [["W", "+z"], ["A", "−x"], ["S", "−z"], ["D", "+x"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0), (k.has("W") ? 1 : 0) - (k.has("S") ? 1 : 0)],
+  reset(s) {
+    s.v = [0, 0]; s.p = [rnd(-4, 4), rnd(-4, 4)];
+    do { s.t = [rnd(-4, 4), rnd(-4, 4)]; } while (Math.hypot(s.t[0] - s.p[0], s.t[1] - s.p[1]) < 5);
+    s.pil = []; let guard = 0;
+    while (s.pil.length < 4 && guard++ < 500) { const q = [rnd(-4.2, 4.2), rnd(-4.2, 4.2)]; if (far(q, [s.p, s.t, ...s.pil], 1.5)) s.pil.push(q); }
+  },
+  observe: (s) => [s.t[0] - s.p[0], s.t[1] - s.p[1], s.v[0], s.v[1], ...rays(s).map((r) => r.d)],
+  step(s, a, dt) {
+    for (let i = 0; i < 2; i++) { s.v[i] += a[i] * F * dt; s.v[i] *= 1 - 0.6 * dt; s.p[i] += s.v[i] * dt; }
+    if (Math.abs(s.p[0]) > HALF || Math.abs(s.p[1]) > HALF) return { done: "바닥 밖으로 떨어짐" };
+    if (s.pil.some((q) => Math.hypot(q[0] - s.p[0], q[1] - s.p[1]) < PR + AR)) return { reward: -0.5, event: "기둥 충돌", done: "기둥 충돌 — 실패" };
+    if (Math.hypot(s.t[0] - s.p[0], s.t[1] - s.p[1]) < 0.8) return { reward: 1, event: "목표 도착", done: "목표 도착 — 성공" };
+    return {};
+  },
+  rule(s) { // 목표로 끌림 + 가까운 기둥에서 밀림 + 벽에서 밀림
+    const d = [s.t[0] - s.p[0], s.t[1] - s.p[1]], L = Math.hypot(...d);
+    let w = [d[0] / L, d[1] / L];
+    for (const q of s.pil) {
+      const e = [s.p[0] - q[0], s.p[1] - q[1]], r = Math.hypot(...e);
+      if (r < 2.2) { const k = (2.2 - r) * 1.6 / r; w[0] += e[0] * k; w[1] += e[1] * k; w[0] += -e[1] * k * 0.5; w[1] += e[0] * k * 0.5; }
+    }
+    for (let i = 0; i < 2; i++) { if (s.p[i] > 4) w[i] -= (s.p[i] - 4) * 2; if (s.p[i] < -4) w[i] -= (s.p[i] + 4) * 2; }
+    const n = Math.hypot(...w) || 1, sp = Math.min(2.2, L * 1.5);
+    return [0, 1].map((i) => clamp((w[i] / n * sp - s.v[i]) * 1.2, -1, 1));
+  },
+  draw(g, s, E) {
+    g.rect(-HALF, -HALF, 10, 10, C.BG);
+    const c = g.ctx; c.save(); c.beginPath(); c.rect(g.X(-HALF), g.Y(HALF), 10 * g.s, 10 * g.s); c.clip(); // 바닥 밖은 그리지 않는다
+    rays(s).forEach((r) => g.line(s.p[0], s.p[1], s.p[0] + r.dx * r.t, s.p[1] + r.dz * r.t, r.hit === "기둥" ? C.NEG : r.hit === "목표" ? C.POS : C.MUTED, { width: r.hit ? 2 : 1, dash: r.hit ? [] : [3, 4] })); c.restore();
+    s.pil.forEach((q) => g.circle(q[0], q[1], PR, C.NEG));
+    g.box(s.t[0], s.t[1], 0.7, 0.7, 0, C.POS);
+    g.circle(s.p[0], s.p[1], AR, C.ACC);
+    g.line(s.p[0], s.p[1], s.p[0] + E.lastAct[0] * 1.2, s.p[1] + E.lastAct[1] * 1.2, C.ACC, { arrow: true, width: 3 });
+    g.text("광선: 빨강 = 기둥에 맞음 · 초록 = 목표 · 점선 = 아무것도 없음", 0, -5.25, C.MUTED, 12);
+  },
+  rewards: [["목표 도착 (거리 < 0.8)", "+1", "판 끝 — 성공"], ["기둥 충돌", "−0.5", "판 끝 — 실패"], ["떨어짐 · 1000 스텝", "0", "판 끝"]],
+  howto: ["기둥에 태그 Obstacle, 목표에 Goal — 센서는 태그로 무엇에 맞았는지 구분한다", "에이전트에 Ray Perception Sensor 3D 를 붙인다 (Detectable Tags · Rays Per Direction · Ray Length)", "센서 관측은 Behavior Parameters 의 Space Size 에 세지 않는다 — 코드 관측은 4 칸", "굴러가는 공에 붙이면 광선도 돈다 → Freeze Rotation 으로 미끄러지게 (이 화면은 8방향 고정)", "충돌 벌점 크기를 바꿔 '아예 안 움직이기'가 생기는지 비교"],
+  code: `// 광선 센서는 컴포넌트로 붙인다 — 코드에 적는 관측은 4칸뿐
+public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 d = target.localPosition - transform.localPosition;
+    sensor.AddObservation(d.x); sensor.AddObservation(d.z);                          // 2
+    sensor.AddObservation(rb.linearVelocity.x); sensor.AddObservation(rb.linearVelocity.z); // 2
+}   // = 4  (+ Ray Perception Sensor 3D 가 자동으로)
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    var c = a.ContinuousActions;
+    rb.AddForce(new Vector3(c[0], 0, c[1]) * 10f);
+    if (Vector3.Distance(target.localPosition, transform.localPosition) < 0.8f)
+    { SetReward(1f); EndEpisode(); }
+    else if (transform.localPosition.y < 0) EndEpisode();
+}
+
+void OnCollisionEnter(Collision c)
+{
+    if (c.collider.CompareTag("Obstacle")) { SetReward(-0.5f); EndEpisode(); }
+}`,
+});
+</script></body></html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>H. 착륙선</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const G = 9.81, THRUST = 15, PADW = 1.5, H = 0.3, DEG = Math.PI / 180; // 중력 · 최대 추력 · 패드 반 폭 · 착륙선 반 높이
+RLPlay.start({
+  id: "H", file: "H-착륙선", title: "착륙선", en: "Lander",
+  concept: "추력으로 떨어지는 속도를 줄이고 기울기를 잡아 패드 위에 살짝 내린다. 가만있으면 추락한다 — 벌점의 크기가 행동을 정한다.",
+  view: { x0: -10.5, x1: 10.5, y0: -1, y1: 14 }, canvas: [600, 440], maxStep: 1500, decisionPeriod: 5,
+  obs: ["패드 − 나 x ÷ 10", "패드 − 나 y ÷ 10", "속도 x ÷ 5", "속도 y ÷ 5", "기울기 sin", "기울기 cos", "남은 연료"],
+  act: { kind: "continuous", names: ["주 추력 (−1 = 0, +1 = 최대)", "기울이기 토크"] },
+  keys: [["↑", "주 추력"], ["←", "왼쪽으로 기울이기"], ["→", "오른쪽으로 기울이기"]],
+  heuristic: (k) => [k.has("ArrowUp") ? 1 : -1, (k.has("ArrowRight") ? 1 : 0) - (k.has("ArrowLeft") ? 1 : 0)],
+  reset(s) { s.x = rnd(-6, 6); s.y = 8; s.vx = rnd(-1, 1); s.vy = 0; s.a = 0; s.w = 0; s.fuel = 1; s.pad = rnd(-6, 6); s.fire = 0; },
+  observe: (s) => [(s.pad - s.x) / 10, -s.y / 10, s.vx / 5, s.vy / 5, Math.sin(s.a), Math.cos(s.a), s.fuel],
+  step(s, act, dt) {
+    const t01 = s.fuel > 0 ? (act[0] + 1) / 2 : 0; s.fire = t01;
+    s.w += act[1] * 3 * dt; s.w *= 1 - 2 * dt; s.a += s.w * dt;               // 기울기 (+ = 오른쪽)
+    s.vx += Math.sin(s.a) * t01 * THRUST * dt; s.vy += (Math.cos(s.a) * t01 * THRUST - G) * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt; s.fuel = Math.max(0, s.fuel - t01 * dt * 0.06);
+    if (s.y > 15 || Math.abs(s.x) > 10) return { reward: -1, event: "화면 밖으로 나감", done: "화면 밖 — 실패" };
+    if (s.y <= H) {
+      const sp = Math.hypot(s.vx, s.vy), tilt = Math.abs(s.a) / DEG, onPad = Math.abs(s.x - s.pad) < PADW;
+      s.y = H;
+      if (onPad && sp < 1 && tilt < 15) return { reward: 1, event: `착지 성공 (속력 ${sp.toFixed(2)} · 기울기 ${tilt.toFixed(0)}°)`, done: "착지 성공" };
+      return { reward: -1, event: `충돌 (${!onPad ? "패드 밖" : sp >= 1 ? `속력 ${sp.toFixed(2)}` : `기울기 ${tilt.toFixed(0)}°`})`, done: "충돌 — 실패" };
+    }
+    return { reward: -0.001 * t01 };                                          // 연료 비용
+  },
+  rule(s) { // 패드 쪽으로 기울이고, 높이에 맞춰 낙하 속도를 줄인다
+    const vxT = clamp((s.pad - s.x) * 0.6, -2.5, 2.5), aT = clamp((vxT - s.vx) * 0.25, -0.35, 0.35);
+    const torque = clamp((aT - s.a) * 4 - s.w * 1.5, -1, 1);
+    const vyT = -clamp(s.y * 0.6, 0.4, 3);
+    const t01 = clamp(((vyT - s.vy) * 1.5 + G) / THRUST / Math.max(0.6, Math.cos(s.a)), 0, 1);
+    return [t01 * 2 - 1, torque];
+  },
+  draw(g, s, E) {
+    g.rect(-10.5, -1, 21, 1, C.BG, { r: 0 });
+    g.rect(s.pad - PADW, -0.05, PADW * 2, 0.15, C.POS, { r: 2 });
+    const up = [Math.sin(s.a), Math.cos(s.a)], rt = [up[1], -up[0]];
+    if (s.fire > 0.02) g.tri([[s.x - up[0] * H - rt[0] * 0.2, s.y - up[1] * H - rt[1] * 0.2], [s.x - up[0] * H + rt[0] * 0.2, s.y - up[1] * H + rt[1] * 0.2], [s.x - up[0] * (H + 0.3 + s.fire * 1.2), s.y - up[1] * (H + 0.3 + s.fire * 1.2)]], C.ACC);
+    [-1, 1].forEach((k) => g.line(s.x + rt[0] * k * 0.35, s.y + rt[1] * k * 0.35, s.x + rt[0] * k * 0.6 - up[0] * H, s.y + rt[1] * k * 0.6 - up[1] * H, C.ENV, { width: 3 }));
+    g.box(s.x, s.y, 1.0, 0.6, s.a, C.ENV);
+    g.line(s.x + 1, s.y, s.x + 1 + s.vx * 0.4, s.y + s.vy * 0.4, C.MUTED, { arrow: true, width: 2 });
+    g.rect(-10, 13.2, 3 * s.fuel, 0.3, C.ACC, { r: 2 }); g.text("연료", -6.2, 13.35, C.MUTED, 12);
+    g.text(`속력 ${Math.hypot(s.vx, s.vy).toFixed(2)} (< 1) · 기울기 ${(Math.abs(s.a) / DEG).toFixed(0)}° (< 15°)`, 3, 13.35, C.MUTED, 12);
+  },
+  rewards: [["패드 위 · 속력 < 1 · 기울기 < 15°", "+1", "판 끝 — 성공"], ["그 밖의 착지 (세게 · 기울어 · 패드 밖)", "−1", "판 끝 — 실패"], ["화면 밖 (높이 > 15, |x| > 10)", "−1", "판 끝"], ["추력 사용", "−0.001 × 추력", "계속"]],
+  howto: ["옆에서 본 2D 문제로 — Freeze Position Z · Rotation X, Y", "주 추력은 AddRelativeForce(Vector3.up × ...) — 몸이 기울면 옆으로도 간다", "착지 판정은 OnCollisionEnter 에서 relativeVelocity 와 기울기로", "벌점은 0 에서 시작해 하나씩 더한다 — 충돌 벌점이 크면 공중에서 버티기만 한다", "화면 밖 경계가 없으면 위로 도망가 시간을 끄는 판이 생긴다"],
+  code: `public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 d = pad.localPosition - transform.localPosition;
+    float a = transform.eulerAngles.z * Mathf.Deg2Rad;
+    sensor.AddObservation(d.x / 10f); sensor.AddObservation(d.y / 10f);                    // 2
+    sensor.AddObservation(rb.linearVelocity.x / 5f); sensor.AddObservation(rb.linearVelocity.y / 5f); // 2
+    sensor.AddObservation(Mathf.Sin(a)); sensor.AddObservation(Mathf.Cos(a));              // 2
+    sensor.AddObservation(fuel);                                                           // 1
+}   // = 7
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    float thrust = fuel > 0 ? (a.ContinuousActions[0] + 1f) / 2f : 0f;
+    rb.AddRelativeForce(Vector3.up * thrust * 15f);
+    rb.AddTorque(0, 0, -a.ContinuousActions[1] * 0.3f);
+    fuel -= thrust * Time.fixedDeltaTime * 0.06f;
+    AddReward(-0.001f * thrust);                          // 연료 비용
+    if (transform.localPosition.y > 15f || Mathf.Abs(transform.localPosition.x) > 10f)
+    { SetReward(-1f); EndEpisode(); }
+}
+
+void OnCollisionEnter(Collision c)
+{
+    bool ok = c.collider.CompareTag("Pad") && c.relativeVelocity.magnitude < 1f && Tilt() < 15f;
+    SetReward(ok ? 1f : -1f); EndEpisode();
+}`,
+});
+</script></body></html>

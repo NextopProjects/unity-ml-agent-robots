@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>L. 커리큘럼</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const F = 10, HALF = 5, R_OK = 0.7, V_OK = 0.2;
+const inside = (p) => Math.abs(p[0]) < 4.3 && Math.abs(p[1]) < 4.3;
+RLPlay.start({
+  id: "L", file: "L-커리큘럼", title: "커리큘럼", en: "Curriculum Learning",
+  concept: "B 멈춰서 도착에 난이도 단계를 얹었다. 판 시작에 '목표 거리'를 받아 그 거리에 목표를 놓고, 최근 20판 평균 보상이 0.8 을 넘으면 다음 단계(2 → 4 → 6)로 간다.",
+  view: { x0: -5.5, x1: 5.5, y0: -5.5, y1: 5.5 }, maxStep: 500, decisionPeriod: 5,
+  curriculum: { param: "goal_distance", lessons: [2, 4, 6], threshold: 0.8, window: 20 },
+  obs: ["목표 − 공 x", "목표 − 공 z", "공 속도 x", "공 속도 z"],
+  act: { kind: "continuous", names: ["x 방향 힘", "z 방향 힘"] },
+  keys: [["W", "+z"], ["A", "−x"], ["S", "−z"], ["D", "+x"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0), (k.has("W") ? 1 : 0) - (k.has("S") ? 1 : 0)],
+  reset(s) {
+    const gd = s.params.goal_distance ?? 6; // 기본값 = 가장 어려운 단계
+    s.v = [0, 0]; s.gd = gd;
+    do { s.p = [rnd(-4, 4), rnd(-4, 4)]; const a = rnd(0, Math.PI * 2); s.t = [s.p[0] + Math.cos(a) * gd, s.p[1] + Math.sin(a) * gd]; } while (!inside(s.t));
+  },
+  observe: (s) => [s.t[0] - s.p[0], s.t[1] - s.p[1], s.v[0], s.v[1]],
+  step(s, a, dt) {
+    for (let i = 0; i < 2; i++) { s.v[i] += a[i] * F * dt; s.v[i] *= 1 - 0.4 * dt; s.p[i] += s.v[i] * dt; }
+    if (Math.abs(s.p[0]) > HALF || Math.abs(s.p[1]) > HALF) return { done: "바닥 밖으로 떨어짐" };
+    if (Math.hypot(s.t[0] - s.p[0], s.t[1] - s.p[1]) < R_OK && Math.hypot(...s.v) < V_OK) return { reward: 1, event: `원 안에서 멈춤 (거리 ${s.gd} 단계)`, done: "원 안에서 멈춤 — 성공" };
+    return {};
+  },
+  rule(s) {
+    const d = [s.t[0] - s.p[0], s.t[1] - s.p[1]], L = Math.hypot(...d) || 1, sp = Math.min(3.5, Math.sqrt(2 * 2.5 * L) - 0.1);
+    return [0, 1].map((i) => clamp((d[i] / L * Math.max(0, sp) - s.v[i]) * 1.2, -1, 1));
+  },
+  draw(g, s, E) {
+    g.rect(-HALF, -HALF, 10, 10, C.BG);
+    g.circle(s.t[0], s.t[1], R_OK, C.POS, { alpha: 0.18 }); g.circle(s.t[0], s.t[1], R_OK, C.POS, { stroke: true });
+    g.line(s.p[0], s.p[1], s.t[0], s.t[1], C.ENV, { dash: [5, 5], width: 1.5 });
+    g.circle(s.p[0], s.p[1], 0.45, C.ACC);
+    g.line(s.p[0], s.p[1], s.p[0] + E.lastAct[0] * 1.2, s.p[1] + E.lastAct[1] * 1.2, C.ACC, { arrow: true, width: 3 });
+    const lv = [2, 4, 6].indexOf(s.gd);
+    [2, 4, 6].forEach((v, i) => { g.rect(-4.8 + i * 1.3, 4.45, 1.15, 0.4, i === lv ? C.ACC : C.CARD2, { r: 4 }); g.text(`단계 ${i + 1} · ${v}`, -4.8 + i * 1.3 + 0.575, 4.65, i === lv ? C.BG : C.MUTED, 11); });
+    g.text("단계는 보상이 아니라 '환경'이다 — 관측 · 행동 · 보상은 B 와 똑같다", 0, -5.25, C.MUTED, 12);
+  },
+  rewards: [["원 안 · 속력 < 0.2", "+1", "판 끝 — 성공"], ["떨어짐 · 500 스텝", "0", "판 끝"], ["(단계 오름) 최근 20판 평균 > 0.8", "보상 아님", "다음 판부터 목표가 더 멀리"]],
+  howto: ["바탕은 B 멈춰서 도착 — 목표 거리 상수만 GetWithDefault(\"goal_distance\", 6f) 로 바꾼다", "기본값을 가장 어려운 값(6)으로: 커리큘럼 없이 돌리면 곧바로 비교 실험이 된다", "yaml 의 environment_parameters 에 lesson 3개 (2 · 4 · 6) 와 completion_criteria", "yaml 커리큘럼은 내려오지 않는다 — 무너지면 min_lesson_length 를 늘리거나 코드로 조절", "'무작위' 모드는 단계 1 을 못 넘고, '규칙' 모드는 단계 3 까지 오르는 것을 확인해 본다"],
+  code: `public override void OnEpisodeBegin()
+{
+    // 파이썬(yaml 커리큘럼)이 정한 지금 단계의 값. 없으면 가장 어려운 6
+    float goalDist = Academy.Instance.EnvironmentParameters.GetWithDefault("goal_distance", 6f);
+    rb.linearVelocity = Vector3.zero;
+    transform.localPosition = RandomPoint();
+    target.localPosition = PointAtDistance(transform.localPosition, goalDist);  // 바닥 안쪽으로
+}
+// CollectObservations · OnActionReceived 는 B 와 똑같다
+
+/* robotarm_config.yaml 처럼, 이 과제의 yaml 에만:
+environment_parameters:
+  goal_distance:
+    curriculum:
+      - name: Near
+        completion_criteria: { measure: reward, behavior: StopAtTarget,
+                               threshold: 0.8, min_lesson_length: 100 }
+        value: 2.0
+      - name: Mid
+        completion_criteria: { measure: reward, behavior: StopAtTarget,
+                               threshold: 0.8, min_lesson_length: 100 }
+        value: 4.0
+      - name: Far
+        value: 6.0
+*/`,
+});
+</script></body></html>

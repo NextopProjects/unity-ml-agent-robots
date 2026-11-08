@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>C. 격자 이동</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { C } = RLPlay;
+const N = 3; // 칸 좌표 −3 ~ 3 (7 × 7)
+const MOVES = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+const ri = () => Math.floor(Math.random() * (2 * N + 1)) - N;
+RLPlay.start({
+  id: "C", file: "C-격자-이동", title: "격자 이동", en: "Grid Walker",
+  concept: "바둑판 위의 말이 한 칸씩 움직여 목표 칸에 가장 빨리 도착한다. 행동은 다섯 가지 중 하나를 고르는 이산 행동이다.",
+  view: { x0: -3.7, x1: 3.7, y0: -4.2, y1: 3.7 }, maxStep: 100, decisionPeriod: 1, turnBased: true,
+  obs: ["내 칸 x ÷ 3", "내 칸 z ÷ 3", "목표 칸 x ÷ 3", "목표 칸 z ÷ 3"],
+  act: { kind: "discrete", labels: ["정지", "+x 오른쪽", "−x 왼쪽", "+z 위", "−z 아래"] },
+  keys: [["→", "1"], ["←", "2"], ["↑", "3"], ["↓", "4"], ["Space", "0 정지"]],
+  heuristic: (k, pending) => [({ ArrowRight: 1, ArrowLeft: 2, ArrowUp: 3, ArrowDown: 4 })[pending[0]] ?? 0],
+  reset(s) {
+    s.a = [ri(), ri()];
+    do { s.g = [ri(), ri()]; } while (s.g[0] === s.a[0] && s.g[1] === s.a[1]);
+    s.path = [s.a.slice()]; s.best = Math.abs(s.g[0] - s.a[0]) + Math.abs(s.g[1] - s.a[1]);
+  },
+  observe: (s) => [s.a[0] / N, s.a[1] / N, s.g[0] / N, s.g[1] / N],
+  step(s, act, dt, E) {
+    const m = MOVES[act[0]], nx = s.a[0] + m[0], nz = s.a[1] + m[1];
+    if (Math.abs(nx) <= N && Math.abs(nz) <= N) { s.a = [nx, nz]; if (act[0]) s.path.push(s.a.slice()); } // 격자 밖이면 그대로
+    if (s.a[0] === s.g[0] && s.a[1] === s.g[1]) return { reward: 1 - 0.001, event: `도착 (최단 ${s.best}걸음 · 실제 ${E.step + 1}걸음)`, done: "목표 칸 도착 — 성공" };
+    return { reward: -0.001 };
+  },
+  rule(s) { const dx = s.g[0] - s.a[0], dz = s.g[1] - s.a[1]; return [Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 1 : 2) : (dz > 0 ? 3 : 4)]; },
+  draw(g, s, E) {
+    for (let x = -N; x <= N; x++) for (let z = -N; z <= N; z++) g.rect(x - 0.46, z - 0.46, 0.92, 0.92, C.BG, { r: 4 });
+    s.path.forEach(([x, z]) => g.circle(x, z, 0.08, C.MUTED));
+    g.rect(s.g[0] - 0.46, s.g[1] - 0.46, 0.92, 0.92, C.POS, { r: 4 });
+    g.rect(s.a[0] - 0.36, s.a[1] - 0.36, 0.72, 0.72, C.ACC, { r: 4 });
+    const m = MOVES[E.lastAct[0] || 0];
+    if (E.lastAct[0]) g.line(s.a[0] - m[0] * 0.9, s.a[1] - m[1] * 0.9, s.a[0] - m[0] * 0.4, s.a[1] - m[1] * 0.4, C.ACC, { arrow: true, width: 3 });
+    g.text(`걸음 ${E.step} · 최단 거리 ${s.best} · 걸음마다 −0.001`, 0, -3.95, C.MUTED, 13);
+  },
+  rewards: [["목표 칸 도착", "+1", "판 끝 — 성공"], ["한 걸음 (결정마다)", "−0.001", "계속"], ["100 걸음 지남", "0", "판 끝 (Max Step)"]],
+  howto: ["Rigidbody 없이 localPosition 을 한 칸씩 바꾼다 — 물리가 없다", "Behavior Parameters: Continuous 0 · Discrete Branches 1 · Branch 0 Size 5", "Decision Period 1 — 한 결정 = 한 칸. Heuristic 은 wasPressedThisFrame 으로 키를 읽는다", "걸음 벌점의 합(최대 −0.1)이 도착 보상(+1)보다 훨씬 작게", "확장: 벽 칸을 넣고 WriteDiscreteActionMask 로 막힌 방향을 끈다"],
+  code: `public override void CollectObservations(VectorSensor sensor)
+{
+    sensor.AddObservation(cell.x / 3f); sensor.AddObservation(cell.y / 3f);   // 2
+    sensor.AddObservation(goal.x / 3f); sensor.AddObservation(goal.y / 3f);   // 2
+}   // = 4
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    int m = a.DiscreteActions[0];                 // 0 정지 1 +x 2 −x 3 +z 4 −z
+    Vector2Int next = cell + Moves[m];
+    if (Mathf.Abs(next.x) <= 3 && Mathf.Abs(next.y) <= 3) cell = next;
+    transform.localPosition = new Vector3(cell.x, 0.5f, cell.y);
+
+    AddReward(-0.001f);                           // 걸음마다 작은 비용
+    if (cell == goal) { AddReward(1f); EndEpisode(); }
+}
+
+public override void Heuristic(in ActionBuffers o)
+{
+    var d = o.DiscreteActions; var k = Keyboard.current;
+    d[0] = k.rightArrowKey.wasPressedThisFrame ? 1 : k.leftArrowKey.wasPressedThisFrame ? 2
+         : k.upArrowKey.wasPressedThisFrame ? 3 : k.downArrowKey.wasPressedThisFrame ? 4 : 0;
+}`,
+});
+</script></body></html>

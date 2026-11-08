@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>D. 막대 세우기</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+// 수레-막대 운동 방정식 (수레 1kg · 막대 0.1kg · 막대 반 길이 0.75m)
+const MC = 1, MP = 0.1, L = 0.75, G = 9.81, FMAX = 10, DEG = Math.PI / 180;
+RLPlay.start({
+  id: "D", file: "D-막대-세우기", title: "막대 세우기", en: "Pole Balance",
+  concept: "수레를 좌우로 움직여 경첩에 달린 막대가 쓰러지지 않게 버틴다. 도착점이 없다 — 살아 있는 스텝마다 +0.01.",
+  view: { x0: -4.6, x1: 4.6, y0: -0.8, y1: 2.6 }, canvas: [600, 360], maxStep: 1000, decisionPeriod: 2,
+  obs: ["수레 x ÷ 4", "수레 속도", "막대 기울기 (rad)", "막대 각속도"],
+  act: { kind: "continuous", names: ["수레 x 방향 힘"] },
+  keys: [["A", "왼쪽"], ["D", "오른쪽"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0)],
+  reset(s) { s.x = 0; s.xd = 0; s.th = rnd(-5, 5) * DEG; s.thd = 0; },
+  observe: (s) => [s.x / 4, s.xd, s.th, s.thd],
+  step(s, a, dt) {
+    const f = a[0] * FMAX, sin = Math.sin(s.th), cos = Math.cos(s.th);
+    const tmp = (f + MP * L * s.thd * s.thd * sin) / (MC + MP);
+    const thacc = (G * sin - cos * tmp) / (L * (4 / 3 - (MP * cos * cos) / (MC + MP)));
+    const xacc = tmp - (MP * L * thacc * cos) / (MC + MP);
+    s.xd += xacc * dt; s.x += s.xd * dt; s.thd += thacc * dt; s.th += s.thd * dt;
+    if (Math.abs(s.th) > 30 * DEG) return { done: "막대가 30° 넘게 기욺" };
+    if (Math.abs(s.x) > 4) return { done: "수레가 레일 끝을 벗어남" };
+    return { reward: 0.01 };
+  },
+  rule: (s) => [clamp((1.0 * s.x + 1.5 * s.xd + 25 * s.th + 5 * s.thd) / FMAX, -1, 1)],
+  draw(g, s, E) {
+    g.rect(-4.3, -0.05, 8.6, 0.06, C.MUTED, { r: 2 });
+    g.line(-4, -0.25, -4, 0.15, C.NEG, { width: 2 }); g.line(4, -0.25, 4, 0.15, C.NEG, { width: 2 });
+    g.box(s.x, 0.2, 0.8, 0.3, 0, C.ACC);
+    const tx = s.x + 2 * L * Math.sin(s.th), ty = 0.35 + 2 * L * Math.cos(s.th);
+    g.line(s.x, 0.35, s.x, 0.35 + 2 * L, C.MUTED, { dash: [4, 4], width: 1 });
+    g.line(s.x, 0.35, tx, ty, Math.abs(s.th) > 20 * DEG ? C.NEG : C.ENV, { width: 7 });
+    g.circle(s.x, 0.35, 0.06, C.TEXT);
+    g.line(s.x, -0.45, s.x + E.lastAct[0] * 1.2, -0.45, C.ACC, { arrow: true, width: 3 });
+    g.text(`기울기 ${(s.th / DEG).toFixed(1)}°  (30° 넘으면 끝)`, 0, 2.45, Math.abs(s.th) > 20 * DEG ? C.NEG : C.MUTED, 13);
+    g.text("주황 화살표: 수레를 미는 힘 (행동)", 0, -0.7, C.MUTED, 12);
+  },
+  rewards: [["서 있는 스텝", "+0.01", "계속"], ["막대가 30° 넘게 기욺", "0", "판 끝"], ["수레가 레일 끝 (|x| > 4)", "0", "판 끝"], ["1000 스텝 버팀", "(만점 10)", "판 끝 (Max Step)"]],
+  howto: ["막대는 수레의 자식이 아니라 별도 Rigidbody — HingeJoint 로만 연결한다", "수레는 Freeze Position Y, Z · Rotation 전부, 막대는 Freeze Rotation X, Y", "각도는 eulerAngles 대신 Vector3.SignedAngle 로 읽는다", "되돌릴 때 속도 · 각속도를 0 으로 — 안 그러면 쓰러지던 힘이 남는다", "빠른 과제라 Decision Period 2 — 1 / 5 / 10 을 바꿔 비교해 본다"],
+  code: `public override void OnEpisodeBegin()
+{
+    cart.linearVelocity = Vector3.zero; cart.transform.localPosition = Vector3.zero;
+    pole.linearVelocity = Vector3.zero; pole.angularVelocity = Vector3.zero;   // 꼭 지운다
+    pole.transform.localRotation = Quaternion.Euler(0, 0, Random.Range(-5f, 5f));
+}
+
+public override void CollectObservations(VectorSensor sensor)
+{
+    float angle = Vector3.SignedAngle(Vector3.up, pole.transform.up, Vector3.forward);
+    sensor.AddObservation(cart.transform.localPosition.x / 4f);  // 1
+    sensor.AddObservation(cart.linearVelocity.x);                // 1
+    sensor.AddObservation(angle * Mathf.Deg2Rad);                // 1
+    sensor.AddObservation(pole.angularVelocity.z);               // 1
+}   // = 4
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    cart.AddForce(Vector3.right * a.ContinuousActions[0] * 10f);
+    float angle = Vector3.SignedAngle(Vector3.up, pole.transform.up, Vector3.forward);
+    if (Mathf.Abs(angle) > 30f || Mathf.Abs(cart.transform.localPosition.x) > 4f) EndEpisode();
+    else AddReward(0.01f);                        // 살아 있는 것이 곧 점수
+}`,
+});
+</script></body></html>

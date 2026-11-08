@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>J. 술래잡기</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const W = 4.6, R = 0.4, FR = 10, FC = 12, MAX = 1500; // 벽 안쪽 · 반지름 · 도망자 힘 · 술래 힘 (1.2배)
+function move(p, v, a, f, dt) {
+  for (let i = 0; i < 2; i++) { v[i] += a[i] * f * dt; v[i] *= 1 - 1.2 * dt; p[i] += v[i] * dt; if (Math.abs(p[i]) > W) { p[i] = Math.sign(p[i]) * W; v[i] = -v[i] * 0.3; } }
+}
+RLPlay.start({
+  id: "J", file: "J-술래잡기", title: "술래잡기", en: "Tag",
+  concept: "도망자(에이전트)가 술래를 피해 1500 스텝을 버틴다. 이 초안은 1단계 — 술래는 '곧장 쫓아오는' 코드다. 2단계에서는 술래도 Agent 가 되어 함께 배운다.",
+  view: { x0: -5.3, x1: 5.3, y0: -5.3, y1: 5.3 }, maxStep: MAX, decisionPeriod: 5,
+  obs: ["술래 − 나 x ÷ 10", "술래 − 나 z ÷ 10", "내 속도 x", "내 속도 z", "술래 속도 x", "술래 속도 z", "내 위치 x ÷ 5", "내 위치 z ÷ 5"],
+  act: { kind: "continuous", names: ["x 방향 힘", "z 방향 힘"] },
+  keys: [["W", "+z"], ["A", "−x"], ["S", "−z"], ["D", "+x"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0), (k.has("W") ? 1 : 0) - (k.has("S") ? 1 : 0)],
+  reset(s) {
+    s.r = [rnd(-4, 4), rnd(-4, 4)]; s.rv = [0, 0];
+    do { s.c = [rnd(-4, 4), rnd(-4, 4)]; } while (Math.hypot(s.c[0] - s.r[0], s.c[1] - s.r[1]) < 5);
+    s.cv = [0, 0]; s.trail = [];
+  },
+  observe: (s) => [(s.c[0] - s.r[0]) / 10, (s.c[1] - s.r[1]) / 10, s.rv[0], s.rv[1], s.cv[0], s.cv[1], s.r[0] / 5, s.r[1] / 5],
+  step(s, a, dt, E) {
+    move(s.r, s.rv, a, FR, dt);
+    const d = [s.r[0] - s.c[0], s.r[1] - s.c[1]], L = Math.hypot(...d) || 1;
+    move(s.c, s.cv, [d[0] / L, d[1] / L], FC, dt);                          // 코드 술래: 곧장 쫓기
+    if (E.step % 10 === 0) { s.trail.push(s.r.slice()); if (s.trail.length > 40) s.trail.shift(); }
+    if (Math.hypot(s.r[0] - s.c[0], s.r[1] - s.c[1]) < 2 * R + 0.2) return { reward: -1, event: "잡힘", done: "잡힘 — 술래 승" };
+    if (E.step + 1 >= MAX) return { reward: 0.001, event: "1500 스텝 버팀", done: "끝까지 버팀 — 도망자 승" };
+    return { reward: 0.001 };
+  },
+  rule(s) { // 술래 반대쪽 + 옆으로 비켜 돌기 + 벽 · 구석 피하기
+    const d = [s.r[0] - s.c[0], s.r[1] - s.c[1]], L = Math.hypot(...d) || 1, u = [d[0] / L, d[1] / L];
+    const tang = [-u[1], u[0]], side = Math.sign(tang[0] * -s.r[0] + tang[1] * -s.r[1]) || 1; // 가운데 쪽으로 도는 방향
+    let w = [u[0] * 0.6 + tang[0] * side, u[1] * 0.6 + tang[1] * side];
+    for (let i = 0; i < 2; i++) { const e = Math.abs(s.r[i]); if (e > 3) w[i] -= Math.sign(s.r[i]) * (e - 3) * 1.5; }
+    return w.map((v) => clamp(v * 2, -1, 1));
+  },
+  draw(g, s, E) {
+    g.rect(-5, -5, 10, 10, C.MUTED); g.rect(-W - R, -W - R, 2 * (W + R), 2 * (W + R), C.BG);
+    s.trail.forEach(([x, z]) => g.circle(x, z, 0.06, C.ENV, { alpha: 0.4 }));
+    g.line(s.c[0], s.c[1], s.r[0], s.r[1], C.NEG, { dash: [5, 5], width: 1.5 });
+    g.circle(s.c[0], s.c[1], R, C.NEG); g.circle(s.r[0], s.r[1], R, C.ENV);
+    g.text("술래", s.c[0], s.c[1] - 0.75, C.NEG, 12); g.text("도망자 (에이전트)", s.r[0], s.r[1] - 0.75, C.ENV, 12);
+    g.line(s.r[0], s.r[1], s.r[0] + E.lastAct[0] * 1.2, s.r[1] + E.lastAct[1] * 1.2, C.ACC, { arrow: true, width: 3 });
+    g.text(`남은 시간 ${((MAX - E.step) * 0.02).toFixed(1)}초 · 술래는 1.2배 빠르다`, 0, 5.1, C.MUTED, 12);
+  },
+  rewards: [["버틴 스텝 (도망자)", "+0.001", "계속 (술래는 −0.001)"], ["잡힘 (거리 < 1)", "−1", "판 끝 — 둘 다 (술래 +1)"], ["1500 스텝 버팀", "0", "판 끝 — 도망자 승"]],
+  howto: ["1단계: 술래는 코드 — 도망자 쪽으로 힘을 주는 스크립트. 도망자만 학습한다", "잡히면 두 에이전트 모두 새 판 — 영역 스크립트가 둘의 EndEpisode 를 같이 부른다", "벽 정보(내 위치)를 관측에 넣지 않으면 구석에 몰린다 — 빼서 비교", "2단계: 술래도 Agent (Behavior Name \"Chaser\"), yaml 에 키 두 개 — 함께 학습", "상대가 함께 배우면 그래프가 오르내린다 → 고정된 상대와 엇갈려 붙여 평가"],
+  code: `// 도망자 — Behavior Name "Runner"
+public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 d = chaser.localPosition - transform.localPosition;
+    sensor.AddObservation(d.x / 10f); sensor.AddObservation(d.z / 10f);          // 2
+    sensor.AddObservation(rb.linearVelocity.x); sensor.AddObservation(rb.linearVelocity.z); // 2
+    sensor.AddObservation(chaserRb.linearVelocity.x); sensor.AddObservation(chaserRb.linearVelocity.z); // 2
+    sensor.AddObservation(transform.localPosition.x / 5f);                      // 1  벽 · 구석
+    sensor.AddObservation(transform.localPosition.z / 5f);                      // 1
+}   // = 8
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    var c = a.ContinuousActions;
+    rb.AddForce(new Vector3(c[0], 0, c[1]) * 10f);
+    AddReward(0.001f);                                    // 버틴 시간
+    if (Vector3.Distance(chaser.localPosition, transform.localPosition) < 1f)
+        area.Caught();                                    // 둘 다 끝낸다
+}
+
+// TagArea.cs
+public void Caught()
+{
+    runner.AddReward(-1f); chaser.AddReward(1f);         // 서로 반대인 보상
+    runner.EndEpisode();   chaser.EndEpisode();
+}`,
+});
+</script></body></html>

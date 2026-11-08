@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>I. 공 받아치기</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const G = 9.81, WALL = 3, PW = 0.75, PY = 0.5, BR = 0.2, PSPEED = 4; // 벽 · 패들 반 폭 · 패들 높이 · 공 반지름 · 패들 속도
+const params = new URLSearchParams(location.search); const DP = +(params.get("dp") || 2);
+function landX(s) { // 지금 속도로 패들 높이에 닿는 x (벽 반사 포함) — 규칙 모드용
+  const y = s.by - PY - BR, t = (s.vy + Math.sqrt(Math.max(0, s.vy * s.vy + 2 * G * y))) / G;
+  let x = s.bx + s.vx * t; const span = 2 * (WALL - BR);
+  x = ((x + WALL - BR) % (2 * span) + 2 * span) % (2 * span); if (x > span) x = 2 * span - x; return x - (WALL - BR);
+}
+RLPlay.start({
+  id: "I", file: "I-공-받아치기", title: "공 받아치기", en: "Paddle Keeper",
+  concept: `떨어지는 공을 패들로 받아 다시 띄운다. 공이 바닥에 닿으면 끝. 결정 간격(Decision Period)이 길면 늦어서 놓친다 — 지금 ${DP} (주소 끝에 ?dp=10 을 붙여 바꿔 보기).`,
+  view: { x0: -3.3, x1: 3.3, y0: -0.3, y1: 6.2 }, canvas: [480, 470], maxStep: 3000, decisionPeriod: DP,
+  obs: ["공 − 패들 x ÷ 3", "공 높이 ÷ 5", "공 속도 x ÷ 5", "공 속도 y ÷ 5", "패들 x ÷ 3"],
+  act: { kind: "continuous", names: ["패들 x 이동 속도"] },
+  keys: [["A", "왼쪽"], ["D", "오른쪽"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0)],
+  reset(s) { s.px = 0; s.bx = rnd(-2, 2); s.by = 4; s.vx = rnd(-1, 1); s.vy = 0; s.ready = true; },
+  observe: (s) => [(s.bx - s.px) / 3, s.by / 5, s.vx / 5, s.vy / 5, s.px / 3],
+  step(s, a, dt) {
+    s.px = clamp(s.px + a[0] * PSPEED * dt, -WALL + PW, WALL - PW);            // MovePosition 처럼
+    s.vy -= G * dt; s.bx += s.vx * dt; s.by += s.vy * dt;
+    if (Math.abs(s.bx) > WALL - BR) { s.bx = Math.sign(s.bx) * (WALL - BR); s.vx = -s.vx; }
+    if (s.by > 1.5) s.ready = true;                                             // 다시 떠올라야 다음 보상
+    if (s.vy < 0 && s.by - BR <= PY + 0.06 && s.by > PY - 0.1 && Math.abs(s.bx - s.px) < PW + BR) {
+      s.vy = 7.2; s.vx = clamp(s.vx + (s.bx - s.px) * 2, -3, 3); s.by = PY + 0.06 + BR;
+      if (s.ready) { s.ready = false; return { reward: 0.1, event: "받아침 — 판은 계속" }; }
+    }
+    if (s.by - BR <= 0) return { done: "공이 바닥에 닿음" };
+    return {};
+  },
+  rule: (s) => [clamp((landX(s) - s.px) * 3, -1, 1)],
+  draw(g, s, E) {
+    g.rect(-WALL, -0.3, 2 * WALL, 0.3, C.BG, { r: 0 });
+    g.line(-WALL, 0, -WALL, 6.2, C.MUTED, { width: 3 }); g.line(WALL, 0, WALL, 6.2, C.MUTED, { width: 3 });
+    // 지금 속도로 그린 낙하 궤적 (예측)
+    let x = s.bx, y = s.by, vx = s.vx, vy = s.vy;
+    for (let i = 0; i < 60 && y > PY; i++) { vy -= G * 0.04; x += vx * 0.04; y += vy * 0.04; if (Math.abs(x) > WALL - BR) vx = -vx; if (i % 3 === 0) g.circle(x, y, 0.035, C.MUTED); }
+    g.rect(s.px - PW, PY - 0.08, PW * 2, 0.12, C.ACC, { r: 3 });
+    g.circle(s.bx, s.by, BR, C.ENV);
+    g.line(s.px, PY - 0.2, s.px + E.lastAct[0] * 0.9, PY - 0.2, C.ACC, { arrow: true, width: 3 });
+    g.text("회색 점: 공이 떨어질 길 (사람 · 에이전트가 예측해야 하는 것)", 0, 6.0, C.MUTED, 12);
+  },
+  rewards: [["패들로 받음 (다시 떠오른 뒤 한 번만)", "+0.1", "계속"], ["공이 바닥에 닿음", "0", "판 끝"], ["3000 스텝 지남", "0", "판 끝 (Max Step)"]],
+  howto: ["패들은 kinematic Rigidbody + MovePosition — 위치를 직접 바꾸면 공을 쳐도 힘이 안 전해진다", "공에는 튀는 Physic Material (Bounciness 0.8~0.9)", "한 번 닿을 때 충돌 이벤트가 여러 번 올 수 있다 — 공이 다시 떠오르기 전엔 보상을 안 준다", "Decision Period 1 / 5 / 10 을 바꿔 학습해 비교 (이 화면: 주소에 ?dp=10)", "이 초안은 평면(x 만)으로 줄였다. 기획서는 x · z 두 축 — 관측 7 · 행동 2"],
+  code: `public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 d = ball.localPosition - transform.localPosition;
+    sensor.AddObservation(d.x / 3f); sensor.AddObservation(d.z / 3f);      // 2
+    sensor.AddObservation(ball.localPosition.y / 5f);                       // 1
+    sensor.AddObservation(ballRb.linearVelocity / 5f);                      // 3
+    sensor.AddObservation(transform.localPosition.x / 3f);                  // 1
+}   // = 7
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    var c = a.ContinuousActions;
+    Vector3 p = transform.localPosition + new Vector3(c[0], 0, c[1]) * 4f * Time.fixedDeltaTime;
+    p.x = Mathf.Clamp(p.x, -2.5f, 2.5f); p.z = Mathf.Clamp(p.z, -2.5f, 2.5f);
+    rb.MovePosition(transform.parent.TransformPoint(p));                   // kinematic + MovePosition
+    if (ball.localPosition.y > 1.5f) ready = true;
+}
+
+public void OnBallHit()                     // 공의 OnCollisionEnter 에서 부른다
+{
+    if (ready) { AddReward(0.1f); ready = false; }   // 한 번 닿을 때 한 번만
+}
+public void OnBallFloor() { EndEpisode(); }`,
+});
+</script></body></html>

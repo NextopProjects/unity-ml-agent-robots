@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>K. 2관절 팔</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const L1 = 1.0, L2 = 0.8, Q1 = 90, Q2 = 150, SPEED = 90, DEG = Math.PI / 180; // 링크 · 관절 범위(±도) · 회전 속도(도/초)
+const fk = (q1, q2) => { const a = 90 + q1, b = a + q2; const j = [L1 * Math.cos(a * DEG), L1 * Math.sin(a * DEG)]; return { j, t: [j[0] + L2 * Math.cos(b * DEG), j[1] + L2 * Math.sin(b * DEG)] }; };
+// 도달 범위를 각도 전수 스캔으로 잰다 (학습 전에 꼭 할 일)
+let RMIN = 9, RMAX = 0;
+for (let a = -Q1; a <= Q1; a += 1) for (let b = -Q2; b <= Q2; b += 1) { const t = fk(a, b).t, r = Math.hypot(...t); RMIN = Math.min(RMIN, r); RMAX = Math.max(RMAX, r); }
+const dist = (s) => { const t = fk(s.q1, s.q2).t; return Math.hypot(s.b[0] - t[0], s.b[1] - t[1]); };
+RLPlay.start({
+  id: "K", file: "K-2관절-팔", title: "2관절 팔", en: "Two-Joint Arm",
+  concept: `책상 위 평면 2관절 팔이 무작위 버튼에 팔 끝을 가져간다. 학습 전에 도달 범위부터 잰다 — 이 팔은 각도 전수 스캔으로 ${RMIN.toFixed(2)} ~ ${RMAX.toFixed(2)}.`,
+  view: { x0: -2, x1: 2, y0: -2.0, y1: 2.0 }, canvas: [560, 560], maxStep: 500, decisionPeriod: 5,
+  obs: ["관절 1 각도 ÷ 90°", "관절 2 각도 ÷ 150°", "버튼 − 팔 끝 x", "버튼 − 팔 끝 z", "버튼 x ÷ 1.8", "버튼 z ÷ 1.8"],
+  act: { kind: "continuous", names: ["관절 1 회전 속도", "관절 2 회전 속도"] },
+  keys: [["Q", "관절1 +"], ["A", "관절1 −"], ["W", "관절2 +"], ["S", "관절2 −"]],
+  heuristic: (k) => [(k.has("Q") ? 1 : 0) - (k.has("A") ? 1 : 0), (k.has("W") ? 1 : 0) - (k.has("S") ? 1 : 0)],
+  reset(s) {
+    s.q1 = 0; s.q2 = 0;
+    // 버튼을 '각도'에서 뽑으면 늘 닿을 수 있는 자리에만 생긴다. 처음 자세 근처는 피한다
+    do { const t = fk(rnd(-Q1, Q1) * 0.95, rnd(-Q2, Q2) * 0.95).t; s.b = t; } while (Math.hypot(s.b[0], s.b[1] - (L1 + L2)) < 0.5 || Math.hypot(...s.b) < RMIN + 0.15);
+    s.prev = dist(s); s.acc = 0;
+  },
+  observe(s) { const t = fk(s.q1, s.q2).t; return [s.q1 / Q1, s.q2 / Q2, s.b[0] - t[0], s.b[1] - t[1], s.b[0] / 1.8, s.b[1] / 1.8]; },
+  step(s, a, dt, E) {
+    s.q1 = clamp(s.q1 + a[0] * SPEED * dt, -Q1, Q1); s.q2 = clamp(s.q2 + a[1] * SPEED * dt, -Q2, Q2); // 범위 밖으로 안 간다
+    const d = dist(s);
+    if (d < 0.15) return { reward: 1, event: "버튼에 닿음", done: "버튼에 닿음 — 성공" };
+    const r = clamp(s.prev - d, -0.02, 0.02); s.prev = d; s.acc += r;
+    if (E.step % 50 === 49 && Math.abs(s.acc) > 0.002) { const v = s.acc; s.acc = 0; return { reward: r, event: "진전 보상 (최근 50스텝 합)", logValue: v }; }
+    return { reward: r };
+  },
+  rule(s) { // 야코비안 전치: 팔 끝 오차를 두 관절 속도로 나눈다
+    const a = (90 + s.q1) * DEG, b = a + s.q2 * DEG, t = fk(s.q1, s.q2).t, e = [s.b[0] - t[0], s.b[1] - t[1]];
+    const j11 = -L1 * Math.sin(a) - L2 * Math.sin(b), j12 = -L2 * Math.sin(b), j21 = L1 * Math.cos(a) + L2 * Math.cos(b), j22 = L2 * Math.cos(b);
+    return [clamp((j11 * e[0] + j21 * e[1]) * 4, -1, 1), clamp((j12 * e[0] + j22 * e[1]) * 4, -1, 1)];
+  },
+  draw(g, s, E) {
+    g.rect(-1.95, -1.95, 3.9, 3.9, C.BG);
+    g.circle(0, 0, RMAX, C.MUTED, { stroke: true, dash: [6, 5], width: 1.5 }); g.circle(0, 0, RMIN, C.MUTED, { stroke: true, dash: [6, 5], width: 1.5 });
+    g.text(`점선 = 닿는 범위 ${RMIN.toFixed(2)} ~ ${RMAX.toFixed(2)} (각도 전수 스캔)`, 0, -1.88, C.MUTED, 12);
+    const { j, t } = fk(s.q1, s.q2);
+    g.circle(s.b[0], s.b[1], 0.12, C.POS);
+    g.line(t[0], t[1], s.b[0], s.b[1], C.ENV, { dash: [4, 4], width: 1.5 });
+    g.line(0, 0, j[0], j[1], C.ENV, { width: 12 }); g.line(j[0], j[1], t[0], t[1], C.ENV, { width: 9 });
+    g.circle(0, 0, 0.1, C.TEXT); g.circle(j[0], j[1], 0.06, C.TEXT); g.circle(t[0], t[1], 0.07, C.ACC);
+    g.text(`관절 1 ${s.q1.toFixed(0)}° (±${Q1}) · 관절 2 ${s.q2.toFixed(0)}° (±${Q2}) · 거리 ${dist(s).toFixed(2)} (< 0.15)`, 0, 1.88, C.MUTED, 12);
+  },
+  rewards: [["팔 끝이 가까워짐", "+진전", "계속 (±0.02 상한)"], ["팔 끝 ↔ 버튼 < 0.15", "+1", "판 끝 — 성공"], ["500 스텝 지남", "0", "판 끝 (Max Step)"]],
+  howto: ["받침 · 관절 · 팔 끝은 scale 1 빈 오브젝트 — 스케일 있는 큐브 아래에 관절을 달면 찌그러진다", "학습 전에 각도를 1° 씩 돌려 실제 닿는 범위를 잰다 (이 화면 맨 위 숫자처럼)", "버튼은 잰 범위 안에만 — 각도에서 뽑아 정기구학으로 위치를 구하면 늘 닿는다", "물리 없이 localRotation 에 각도를 직접 넣는다. 각도는 내 변수로 들고 있는다", "끝나면 RobotArms 3장 코드와 비교해 다른 점 세 가지를 적는다"],
+  code: `float q1, q2;                                   // 각도는 내 변수로 들고 있는다 (eulerAngles X)
+
+public override void OnEpisodeBegin()
+{
+    q1 = q2 = 0; Apply();
+    // 각도에서 뽑아 정기구학으로 → 늘 닿을 수 있는 버튼
+    button.localPosition = Forward(Random.Range(-85f, 85f), Random.Range(-142f, 142f));
+    prevDist = Vector3.Distance(tip.position, button.position);
+}
+
+public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 e = button.localPosition - transform.InverseTransformPoint(tip.position);
+    sensor.AddObservation(q1 / 90f); sensor.AddObservation(q2 / 150f);   // 2
+    sensor.AddObservation(e.x); sensor.AddObservation(e.z);              // 2
+    sensor.AddObservation(button.localPosition.x / 1.8f);               // 1
+    sensor.AddObservation(button.localPosition.z / 1.8f);               // 1
+}   // = 6
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    q1 = Mathf.Clamp(q1 + a.ContinuousActions[0] * 90f * Time.fixedDeltaTime, -90f, 90f);
+    q2 = Mathf.Clamp(q2 + a.ContinuousActions[1] * 90f * Time.fixedDeltaTime, -150f, 150f);
+    Apply();                                    // j1.localRotation = Quaternion.Euler(0, q1, 0) ...
+    float d = Vector3.Distance(tip.position, button.position);
+    AddReward(Mathf.Clamp(prevDist - d, -0.02f, 0.02f)); prevDist = d;
+    if (d < 0.15f) { AddReward(1f); EndEpisode(); }
+}`,
+});
+</script></body></html>

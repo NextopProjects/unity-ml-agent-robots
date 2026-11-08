@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A. 동전 모으기</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const F = 10, HALF = 5; // 힘 배율 · 바닥 반 폭
+function placeCoin(s) { do { s.coin = [rnd(-4, 4), rnd(-4, 4)]; } while (Math.hypot(s.coin[0] - s.p[0], s.coin[1] - s.p[1]) < 1.5); }
+RLPlay.start({
+  id: "A", file: "A-동전-모으기", title: "동전 모으기", en: "Coin Collector",
+  concept: "공이 바닥의 동전을 쉬지 않고 모은다. 먹은 동전은 다른 자리에 다시 생긴다. 판은 1000 스텝 또는 떨어질 때 끝난다.",
+  view: { x0: -5.5, x1: 5.5, y0: -5.5, y1: 5.5 }, maxStep: 1000, decisionPeriod: 5,
+  obs: ["동전 − 공 x", "동전 − 공 z", "공 속도 x", "공 속도 z"],
+  act: { kind: "continuous", names: ["x 방향 힘", "z 방향 힘"] },
+  keys: [["W", "+z"], ["A", "−x"], ["S", "−z"], ["D", "+x"]],
+  heuristic: (k) => [(k.has("D") ? 1 : 0) - (k.has("A") ? 1 : 0), (k.has("W") ? 1 : 0) - (k.has("S") ? 1 : 0)],
+  reset(s) {
+    if (!s.p || s.fell) { s.p = [0, 0]; s.v = [0, 0]; s.fell = false; } // 떨어졌을 때만 가운데로
+    placeCoin(s);
+  },
+  observe: (s) => [s.coin[0] - s.p[0], s.coin[1] - s.p[1], s.v[0], s.v[1]],
+  step(s, a, dt) {
+    for (let i = 0; i < 2; i++) { s.v[i] += a[i] * F * dt; s.v[i] *= 1 - 0.4 * dt; s.p[i] += s.v[i] * dt; }
+    if (Math.abs(s.p[0]) > HALF || Math.abs(s.p[1]) > HALF) { s.fell = true; return { done: "바닥 밖으로 떨어짐" }; }
+    if (Math.hypot(s.coin[0] - s.p[0], s.coin[1] - s.p[1]) < 0.8) { placeCoin(s); return { reward: 1, event: "동전 먹음 — 판은 계속, 동전만 새 자리로" }; }
+    return {};
+  },
+  rule(s) { // 동전 쪽으로, 가까우면 천천히
+    const d = [s.coin[0] - s.p[0], s.coin[1] - s.p[1]], L = Math.hypot(...d) || 1, sp = Math.min(4, L * 2);
+    return [0, 1].map((i) => clamp((d[i] / L * sp - s.v[i]) * 0.8, -1, 1));
+  },
+  draw(g, s, E) {
+    g.rect(-HALF, -HALF, 10, 10, C.BG);
+    g.line(s.p[0], s.p[1], s.coin[0], s.coin[1], C.ENV, { dash: [5, 5], width: 1.5 });
+    g.circle(s.coin[0], s.coin[1], 0.3, C.POS);
+    g.circle(s.p[0], s.p[1], 0.5, C.ACC);
+    g.line(s.p[0], s.p[1], s.p[0] + E.lastAct[0] * 1.2, s.p[1] + E.lastAct[1] * 1.2, C.ACC, { arrow: true, width: 3 });
+    g.text("관측: 동전 − 공 (파랑 점선)   행동: 힘 (주황 화살표)", 0, -5.25, C.MUTED, 12);
+  },
+  rewards: [["동전에 닿음 (거리 < 0.8)", "+1", "계속 — 동전만 새 자리로"], ["바닥에서 떨어짐", "0", "판 끝"], ["1000 스텝 지남", "0", "판 끝 (Max Step)"]],
+  howto: ["바닥 · 공 · 동전을 놓고 공에 Rigidbody, Agent, Behavior Parameters(관측 4 · 연속 2), Decision Requester(5)를 붙인다", "Heuristic 에 WASD 를 연결해 위의 '사람' 모드처럼 직접 플레이한다", "OnEpisodeBegin · CollectObservations · OnActionReceived 를 오른쪽 코드처럼 채운다", "Max Step 1000 — 반복 과제는 시간이 판을 끝낸다", "mlagents-learn 으로 학습 → '무작위' 같던 움직임이 '규칙' 처럼 바뀌는지 본다"],
+  code: `public class CoinAgent : Agent
+{
+    public Transform coin;
+    Rigidbody rb;
+    public override void Initialize() { rb = GetComponent<Rigidbody>(); }
+
+    public override void OnEpisodeBegin()
+    {
+        if (transform.localPosition.y < 0)          // 떨어졌을 때만 가운데로
+        { rb.linearVelocity = Vector3.zero; transform.localPosition = new Vector3(0, 0.5f, 0); }
+        PlaceCoin();                                  // 공과 1.5 이상 떨어진 무작위 자리
+    }
+
+    public override void CollectObservations(VectorSensor sensor)
+    {
+        Vector3 d = coin.localPosition - transform.localPosition;
+        sensor.AddObservation(d.x); sensor.AddObservation(d.z);                         // 2
+        sensor.AddObservation(rb.linearVelocity.x); sensor.AddObservation(rb.linearVelocity.z); // 2
+    }   // = 4
+
+    public override void OnActionReceived(ActionBuffers a)
+    {
+        var c = a.ContinuousActions;
+        rb.AddForce(new Vector3(c[0], 0, c[1]) * 10f);
+        if (Vector3.Distance(coin.localPosition, transform.localPosition) < 0.8f)
+        { AddReward(1f); PlaceCoin(); }               // 판은 끝내지 않는다
+        if (transform.localPosition.y < 0) EndEpisode();
+    }
+
+    public override void Heuristic(in ActionBuffers o)
+    {
+        var c = o.ContinuousActions; var k = Keyboard.current;
+        c[0] = (k.dKey.isPressed ? 1 : 0) - (k.aKey.isPressed ? 1 : 0);
+        c[1] = (k.wKey.isPressed ? 1 : 0) - (k.sKey.isPressed ? 1 : 0);
+    }
+}`,
+});
+</script></body></html>

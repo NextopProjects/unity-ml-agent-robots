@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G. 주차</title><link rel="stylesheet" href="rl-play.css"></head>
+<body><script src="rl-play.js"></script><script>
+const { rnd, clamp, C } = RLPlay;
+const HALF = 10, DEG = Math.PI / 180;
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const fwd = (h) => [Math.sin(h), Math.cos(h)];               // 방향 h = 0 이면 +z(위)를 본다
+const local = (s) => { const dx = s.sp[0] - s.p[0], dz = s.sp[1] - s.p[1], c = Math.cos(s.h), n = Math.sin(s.h); return [dx * c - dz * n, dx * n + dz * c]; }; // [오른쪽, 앞]
+const dist = (s) => Math.hypot(s.sp[0] - s.p[0], s.sp[1] - s.p[1]);
+RLPlay.start({
+  id: "G", file: "G-주차", title: "주차", en: "Parking",
+  concept: "앞뒤로 가고 핸들을 꺾어 주차 칸에 방향까지 맞춰 선다. 옆으로는 못 간다 — 목표를 '내 기준'으로 보고, 방향은 sin · cos 로 본다.",
+  view: { x0: -10.5, x1: 10.5, y0: -10.5, y1: 10.5 }, maxStep: 2000, decisionPeriod: 5,
+  obs: ["칸 위치 — 내 오른쪽 (÷10)", "칸 위치 — 내 앞 (÷10)", "방향 차 sin", "방향 차 cos", "앞방향 속도", "회전 속도"],
+  act: { kind: "continuous", names: ["가속 (− 후진)", "조향 (+ 오른쪽)"] },
+  keys: [["↑", "전진"], ["↓", "후진"], ["←", "왼쪽"], ["→", "오른쪽"]],
+  heuristic: (k) => [(k.has("ArrowUp") ? 1 : 0) - (k.has("ArrowDown") ? 1 : 0), (k.has("ArrowRight") ? 1 : 0) - (k.has("ArrowLeft") ? 1 : 0)],
+  reset(s) {
+    s.p = [rnd(-7, 7), rnd(-7, 7)]; s.h = rnd(-Math.PI, Math.PI); s.v = 0; s.w = 0;
+    do { s.sp = [rnd(-4.5, 4.5), rnd(-4.5, 4.5)]; } while (Math.hypot(s.sp[0] - s.p[0], s.sp[1] - s.p[1]) < 5);
+    s.sh = [0, 90, 180, -90][Math.floor(Math.random() * 4)] * DEG; s.prev = dist(s); s.acc = 0; s.phase = 1;
+  },
+  observe(s) { const l = local(s), d = wrap(s.sh - s.h); return [l[0] / 10, l[1] / 10, Math.sin(d), Math.cos(d), s.v, s.w]; },
+  step(s, a, dt, E) {
+    s.v += a[0] * 6 * dt; s.v *= 1 - 0.8 * dt; s.v = clamp(s.v, -2.5, 4);
+    s.w = a[1] * s.v * 0.35;                      // 회전 = 조향 × 속도 — 멈춰 있으면 안 돈다
+    s.h = wrap(s.h + s.w * dt);
+    const f = fwd(s.h); s.p[0] += f[0] * s.v * dt; s.p[1] += f[1] * s.v * dt; // 옆 미끄러짐 없음
+    if (Math.abs(s.p[0]) > HALF || Math.abs(s.p[1]) > HALF) return { done: "바닥 밖으로 나감" };
+    const d = dist(s), ang = Math.abs(wrap(s.sh - s.h)) / DEG;
+    if (d < 0.5 && ang < 15 && Math.abs(s.v) < 0.2) return { reward: 1, event: `주차 성공 (방향 오차 ${ang.toFixed(0)}°)`, done: "주차 성공" };
+    const r = clamp((s.prev - d) * 0.1, -0.01, 0.01); s.prev = d; s.acc += r;
+    if (E.step % 100 === 99 && Math.abs(s.acc) > 0.002) { const v = s.acc; s.acc = 0; return { reward: r, event: "진전 보상 (최근 100스텝 합)", logValue: v }; }
+    return { reward: r };
+  },
+  rule(s) { // 칸 입구 앞 4m 지점 → 칸 가운데. 각도는 '내 기준'으로 계산
+    const sf = fwd(s.sh), entry = [s.sp[0] - sf[0] * 4, s.sp[1] - sf[1] * 4];
+    const de = Math.hypot(entry[0] - s.p[0], entry[1] - s.p[1]);
+    if (s.phase === 1 && de < 1.2) s.phase = 2;
+    const edge = Math.max(Math.abs(s.p[0]), Math.abs(s.p[1])) > 6.5;
+    const tgt = edge ? [0, 0] : s.phase === 1 ? entry : s.sp;
+    const dx = tgt[0] - s.p[0], dz = tgt[1] - s.p[1], want = Math.atan2(dx, dz), err = wrap(want - s.h), L = Math.hypot(dx, dz);
+    let throttle = s.phase === 1 || edge ? clamp(1.5 - s.v * 0.6, -1, 1) : clamp(L * 0.8 - s.v * 1.2, -1, 0.6);
+    if (s.phase === 2 && !edge) { const l = local(s), ang = wrap(s.sh - s.h); const th = l[1] > 0.1 ? clamp(l[1] * 0.6 - s.v * 1.5, -1, 0.5) : clamp(-s.v * 2, -1, 1); return [th, clamp(ang * 1.2 + l[0] * 1.0, -1, 1) * Math.sign(s.v || 1)]; }
+    return [Math.abs(err) > 1.6 ? 0.4 : throttle, clamp(err * 2, -1, 1)];
+  },
+  draw(g, s, E) {
+    g.rect(-HALF, -HALF, 20, 20, C.BG);
+    g.box(s.sp[0], s.sp[1], 1.6, 2.6, s.sh, C.POS, { alpha: 0.18 });
+    const sf = fwd(s.sh), sr = [sf[1], -sf[0]];
+    [[1, 1], [-1, 1], [-1, -1], [1, -1]].forEach(([a, b], i, arr) => { const [c, d] = arr[(i + 1) % 4], P = (u, v) => [s.sp[0] + sr[0] * u * 0.8 + sf[0] * v * 1.3, s.sp[1] + sr[1] * u * 0.8 + sf[1] * v * 1.3]; const p1 = P(a, b), p2 = P(c, d); g.line(p1[0], p1[1], p2[0], p2[1], C.POS, { width: i === 0 ? 5 : 2, dash: i === 0 ? [] : [5, 4] }); });
+    g.line(s.p[0], s.p[1], s.sp[0], s.sp[1], C.ENV, { dash: [5, 5], width: 1.5 });
+    g.box(s.p[0], s.p[1], 1.0, 2.0, s.h, C.ACC);
+    const f = fwd(s.h); g.circle(s.p[0] + f[0] * 0.75, s.p[1] + f[1] * 0.75, 0.15, C.BG);
+    g.line(s.p[0] + f[0], s.p[1] + f[1], s.p[0] + f[0] * (1 + E.lastAct[0] * 1.5), s.p[1] + f[1] * (1 + E.lastAct[0] * 1.5), C.ACC, { arrow: true, width: 3 });
+    const ang = Math.abs(wrap(s.sh - s.h)) / DEG;
+    g.text(`거리 ${dist(s).toFixed(2)} (< 0.5) · 방향 오차 ${ang.toFixed(0)}° (< 15°) · 속력 ${Math.abs(s.v).toFixed(2)} (< 0.2)`, 0, -10.2, C.MUTED, 12);
+    g.text("칸의 굵은 선 = 앞쪽. 차의 검은 점 = 앞쪽", 0, 10.2, C.MUTED, 12);
+  },
+  rewards: [["칸에 가까워짐", "+진전 × 0.1", "계속 (±0.01 상한)"], ["거리 < 0.5 · 방향 < 15° · 속력 < 0.2", "+1", "판 끝 — 성공"], ["바닥 밖 · 2000 스텝", "0", "판 끝"]],
+  howto: ["진짜 바퀴 물리는 필요 없다: 앞으로 미는 힘 + 속도에 비례한 회전 + 옆 속도 지우기", "칸 위치는 transform.InverseTransformPoint 로 '내 기준' 좌표를 관측한다", "방향 차는 각도 대신 sin · cos 두 칸 — 359° 와 1° 가 가깝게 이어진다", "처음엔 방향 기준을 30° 로 느슨하게 시작해 성공이 나오면 15° 로 조인다", "규칙 모드는 '입구 앞 지점 → 칸' 두 단계 손 규칙이라 늘 성공하지는 않는다"],
+  code: `public override void CollectObservations(VectorSensor sensor)
+{
+    Vector3 local = transform.InverseTransformPoint(spot.position);     // 내 기준 좌표
+    float diff = Vector3.SignedAngle(transform.forward, spot.forward, Vector3.up) * Mathf.Deg2Rad;
+    sensor.AddObservation(local.x / 10f); sensor.AddObservation(local.z / 10f);   // 2
+    sensor.AddObservation(Mathf.Sin(diff)); sensor.AddObservation(Mathf.Cos(diff)); // 2
+    sensor.AddObservation(Vector3.Dot(rb.linearVelocity, transform.forward));    // 1
+    sensor.AddObservation(rb.angularVelocity.y);                                 // 1
+}   // = 6
+
+public override void OnActionReceived(ActionBuffers a)
+{
+    float throttle = a.ContinuousActions[0], steer = a.ContinuousActions[1];
+    rb.AddForce(transform.forward * throttle * 10f);
+    float v = Vector3.Dot(rb.linearVelocity, transform.forward);
+    rb.MoveRotation(rb.rotation * Quaternion.Euler(0, steer * v * 0.4f, 0));
+    rb.linearVelocity -= transform.right * Vector3.Dot(rb.linearVelocity, transform.right); // 옆 미끄러짐 지우기
+
+    float d = Vector3.Distance(transform.localPosition, spot.localPosition);
+    AddReward(Mathf.Clamp((prevDist - d) * 0.1f, -0.01f, 0.01f)); prevDist = d;
+    if (d < 0.5f && Mathf.Abs(diff) < 15f && Mathf.Abs(v) < 0.2f) { AddReward(1f); EndEpisode(); }
+}`,
+});
+</script></body></html>

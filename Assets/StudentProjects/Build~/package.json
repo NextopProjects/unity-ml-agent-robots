@@ -1,0 +1,6 @@
+{
+  "name": "student-projects-build",
+  "private": true,
+  "description": "자율 프로젝트 개발 기획서(PDF · md) 생성",
+  "dependencies": { "pptxgenjs": "3.12.0" }
+}
